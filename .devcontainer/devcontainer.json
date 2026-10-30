@@ -1,0 +1,16 @@
+{
+  "name": "Northbridge Crew Dispatch (synthetic demo)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [
+    4173
+  ],
+  "portsAttributes": {
+    "4173": {
+      "label": "Crew Dispatch demo (private)",
+      "onAutoForward": "openBrowser",
+      "visibility": "private"
+    }
+  },
+  "postCreateCommand": "npm install --ignore-scripts --no-audit --no-fund",
+  "postStartCommand": "bash -lc 'if ! curl -fsS http://127.0.0.1:4173/ >/dev/null; then nohup npm start >/tmp/northbridge-demo.log 2>&1 </dev/null & fi'"
+}
