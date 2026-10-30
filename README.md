@@ -8,6 +8,12 @@
 
 The riskiest dependency is coordinating simultaneous acceptance, expiration and capacity usage. The demo resolves this with server-authoritative simulated time, SQLite `BEGIN IMMEDIATE` transactions, indexed assignment/offer uniqueness constraints, and persistent deadline polling. External SMS, geocoding and deployment are deliberately not required.
 
+## Browser preview with private GitHub Codespaces
+
+Open this repository in **GitHub Codespaces → Create codespace on main**. The devcontainer installs Node, starts the synthetic demo, and forwards port 4173 **privately**. Open the forwarded port in the Codespaces Ports panel. This is a development preview, not a public deployment. Codespaces may have usage limits or charges; check your account before starting.
+
+The demo server intentionally binds to `127.0.0.1` and uses fake credentials. Never expose it publicly without real authentication. If the forwarded port is unavailable, run `npm start` in the Codespace terminal.
+
 ## Run locally
 
 Requirements: **Node.js 22.16+** (its `node:sqlite` and TypeScript stripping APIs are experimental on this runtime).
@@ -36,7 +42,7 @@ There are no paid integrations and no production credentials. No real notificati
 4. Switch to Crew B and accept before expiry. One capacity slot and one current assignment are created atomically.
 5. As dispatcher, advance the job from **assigned → en route → arrived → in progress → completed**, observing timeline and audit records. You can also **Advance clock** to trigger expirations or **Run worker** to exercise recovery.
 6. Select `J006` for missing-location review, `J007` for an outside-region request, `J009` for a simulated notification failure, or `J014` for an exhausted historical offer sequence. Try **Retry channel**, **Confirm location**, and a fresh offer sequence. Export the audit CSV at the bottom of the dispatch console.
-7. The data APIs also support editing a crew's operational skills, authorized areas, declared availability, current workload, capacity, base coordinates and simulated channel (`POST /api/crews/:id`). **The current UI displays crew status but does not expose all configuration fields yet.**
+7. In **Crew capacity / status**, select **Edit** to change a crew's operational skills, authorized areas, availability, workload, capacity, base coordinates, or simulated channel. Invalid updates and removal of requirements for an active assignment are rejected atomically.
 
 ## Why this is deterministic
 
@@ -61,7 +67,7 @@ There are no paid integrations and no production credentials. No real notificati
 
 **Actual verification at the time of this publication:** 16/16 domain tests passed; `tsc --noEmit` passed; basic HTTP and bridged browser smoke tests were performed in the authoring environment. These are not production load, deployment, security or penetration tests.
 
-**Still to do before any real pilot:** implement real authentication and organization-scoped authorization; migrations and data retention; proper secrets management; more extensive concurrent-process integration/load tests; operator-editable crew configuration UI; visibility on pending notification acknowledgments; safe deployment; monitoring and backups. Do not expose this demo server to the Internet as-is.
+**Still to do before any real pilot:** implement real authentication and organization-scoped authorization; migrations and data retention; proper secrets management; more extensive concurrent-process integration/load tests; visibility on pending notification acknowledgments; safe deployment; monitoring and backups. Do not expose this demo server to the Internet as-is.
 
 ## Pilot proposal
 
