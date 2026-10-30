@@ -33,3 +33,7 @@ dialog.diagnostics-dialog::backdrop{background:rgba(11,40,42,.64)}
 .sync-status[data-state=stale]{color:#a63d35;font-weight:700}
 .sync-status[data-state=stale]::before{content:'!';margin-right:6px}
 @media(max-width:720px){.sync-status{order:3;font-size:10px}}
+
+/* Native top-layer dialogs provide Escape handling, focus containment and backdrop. */
+dialog.app-dialog{margin:auto;max-width:min(570px,calc(100vw - 24px));width:100%}
+dialog.app-dialog::backdrop{background:rgba(11,40,42,.60)}

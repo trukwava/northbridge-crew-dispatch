@@ -1,6 +1,6 @@
 const root=document.getElementById('root');
 const toast=document.getElementById('toast');
-const state={view:'dispatch',selected:'J001',filter:'all',crew:'A',dashboard:null,detail:null,inbox:null,modal:null,busy:false,session:null,refreshSeq:0,lastSyncAt:null};
+const state={view:'dispatch',selected:'J001',filter:'all',crew:'A',dashboard:null,detail:null,inbox:null,modal:null,busy:false,session:null,refreshSeq:0,lastSyncAt:null,returnFocusAction:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const humanStatus=s=>String(s??'').replaceAll('_',' ');
 const status=s=>`<span class="status ${esc(s)}">${esc(humanStatus(s))}</span>`;
@@ -59,7 +59,16 @@ function render(){
  const logout=document.getElementById('preview-logout');if(logout)logout.hidden=state.session?.mode!=='preview'||!state.session.authenticated;
  root.innerHTML=state.session?.mode==='preview'&&!state.session.authenticated?renderLogin():
   (state.dashboard||state.inbox)?(state.view==='dispatch'?renderDispatch():renderCrew()):'<div class="loading">Loading synthetic dispatch data…</div>';
- if(state.modal)root.insertAdjacentHTML('beforeend',renderModal());
+ if(state.modal){
+  root.insertAdjacentHTML('beforeend',renderModal());
+  const dialog=root.querySelector('dialog.app-dialog');
+  dialog.addEventListener('cancel',e=>{e.preventDefault();state.modal=null;render();});
+  dialog.showModal();
+ } else if(state.returnFocusAction){
+  const button=document.querySelector(`[data-action="${state.returnFocusAction}"]`);
+  state.returnFocusAction=null;
+  button?.focus();
+ }
 }
 function renderLogin(){
  return `<div class="layout" style="max-width:620px;margin:45px auto"><section class="panel clock-card"><span class="eyebrow">NORTHBRIDGE / RESTRICTED PREVIEW</span><h1>Sign in to preview</h1><p class="lead">Synthetic demo only. Each preview session has an explicit dispatcher or crew role; no customer data or external messages are connected.</p>
@@ -136,7 +145,7 @@ function renderModal(){
  else if(m==='confirm')content=`<form id="modal-form" class="form-grid"><label class="full"><span class="field-label">Verified service address</span><input name="address" value="${esc(state.detail.job.address||'')}" required></label><label class="full"><span class="field-label">Authorized service region</span><select name="region">${['Manhattan','Brooklyn','Queens'].map(x=>`<option ${x===state.detail.job.region?'selected':''}>${x}</option>`).join('')}</select></label><label class="full checkpill"><input name="confirmed" type="checkbox" required> I have manually verified the address and region</label>${footer('Confirm and unlock ranking')}</form>`;
  else if(m==='override')content=`<form id="modal-form" class="form-grid"><p class="note full">Manual assignment requires eligible operational skills, authorized region, available capacity, and a recorded reason. It never bypasses physical capacity limits.</p><label class="full"><span class="field-label">Eligible crew</span><select name="crewId">${state.detail.ranking.ranking.filter(x=>x.eligible).map(x=>`<option value="${esc(x.crewId)}">${esc(x.crewId)} · ${esc(x.name)} · ${x.remaining} available</option>`).join('')}</select></label><label class="full"><span class="field-label">Attributable reason *</span><textarea rows="3" name="reason" minlength="8" required placeholder="Dispatcher confirmed immediate coverage by phone in this synthetic scenario"></textarea></label>${footer('Assign crew')}</form>`;
  else content=`<p>Clear and restore all fictional demo data to the initial 15-job, eight-crew fixture? This cannot be undone in the demo database.</p><div class="form-actions">${button('Keep data','modal-close')}${button('Reset demo','reset-confirm','danger')}</div>`;
- return `<div class="drawer" role="presentation"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-top"><span class="eyebrow">NORTHBRIDGE / OPERATIONS</span><button class="close" data-action="modal-close" aria-label="Close dialog">×</button></div><h2>${title}</h2>${content}</div></div>`;
+ return `<dialog class="modal app-dialog" aria-label="${esc(title)}"><div class="modal-top"><span class="eyebrow">NORTHBRIDGE / OPERATIONS</span><button class="close" data-action="modal-close" aria-label="Close dialog">×</button></div><h2>${title}</h2>${content}</dialog>`;
 }
 function footer(text){return `<div class="form-actions full">${button('Cancel','modal-close')}<button class="button primary" type="submit">${esc(text)}</button></div>`;}
 async function act(name,el){
@@ -152,10 +161,10 @@ async function act(name,el){
   if(name==='refresh')await refresh();
   else if(name==='pilot-open'){window.nbOpenPilot?.();return;}
   else if(name==='diagnostics-open'){window.nbOpenDiagnostics?.();return;}
-  else if(name==='create-open')state.modal='create';
-  else if(name==='confirm-open')state.modal='confirm';
-  else if(name==='override-open')state.modal='override';
-  else if(name==='reset-open')state.modal='reset';
+  else if(name==='create-open'){state.returnFocusAction=name;state.modal='create';}
+  else if(name==='confirm-open'){state.returnFocusAction=name;state.modal='confirm';}
+  else if(name==='override-open'){state.returnFocusAction=name;state.modal='override';}
+  else if(name==='reset-open'){state.returnFocusAction=name;state.modal='reset';}
   else if(name==='modal-close')state.modal=null;
   else if(name==='start')await post(`/api/jobs/${jid}/start`);
   else if(name==='pause')await post(`/api/jobs/${jid}/pause`);

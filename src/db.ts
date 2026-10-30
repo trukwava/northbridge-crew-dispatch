@@ -40,10 +40,17 @@ export function openDb(path = ':memory:'): Sqlite {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   try {
-  db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');
+  // Apply the lock timeout BEFORE any PRAGMA that may briefly require a write lock.
+  db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
   const currentVersion=Number((db.prepare('PRAGMA user_version').get() as {user_version:number}).user_version);
   if(currentVersion>SCHEMA_VERSION) throw Error(`Unsupported future SQLite schema version ${currentVersion}; requires newer application`);
   if(currentVersion<0) throw Error('Invalid SQLite schema version');
+  // Mature databases are validated read-only on reopen: schema DDL should not
+  // contend with another dispatcher or expiry worker during normal startup.
+  if(currentVersion===SCHEMA_VERSION) {
+    validateSchema(db);
+    return db;
+  }
   db.exec('BEGIN IMMEDIATE');
   try {
   db.exec(`
