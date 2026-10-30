@@ -58,7 +58,7 @@ function renderDispatch(){
  const s=state.detail;
  return `<div class="layout">
   <div class="heading"><div><span class="eyebrow">SERVICE OPERATIONS / DISPATCH CONSOLE</span><h1>Dispatch overview</h1><p class="lead">Coordinate crew offers and exceptions with an auditable, deterministic workflow.</p></div>
-   <div class="actions">${button('↻ Refresh','refresh')}${button('Shadow-mode pilot','pilot-open')}${button('+ New service request','create-open','primary')}</div></div>
+   <div class="actions">${button('↻ Refresh','refresh')}${button('Shadow-mode pilot','pilot-open')}${button('Integrity check','diagnostics-open')}${button('+ New service request','create-open','primary')}</div></div>
   <section class="metrics" aria-label="Operational counts">${metric('OPEN REQUESTS',d.metrics.open,'Not completed or cancelled')}${metric('ASSIGNED / COMPLETED',d.metrics.assigned,'Including work in progress')}${metric('PENDING OFFERS',d.metrics.pending,'Awaiting crew response')}${metric('ACTIVE CONFLICTS',d.metrics.conflicts,'Current duplicate assignments')}</section>
   <div class="workspace"><div>
     <section class="panel"><div class="panel-title"><div><h2>Service requests</h2><p class="panel-sub">${jobs.length} shown · select a request to inspect</p></div><label><span class="field-label">Filter</span><select class="filter" id="filter"><option value="all" ${state.filter==='all'?'selected':''}>All requests</option>${['new','review','offering','unassigned','assigned','en_route','arrived','in_progress','completed','cancelled'].map(x=>`<option value="${x}" ${state.filter===x?'selected':''}>${humanStatus(x)}</option>`).join('')}</select></label></div>
@@ -132,6 +132,7 @@ async function act(name,el){
   }
   if(name==='refresh')await refresh();
   else if(name==='pilot-open'){window.nbOpenPilot?.();return;}
+  else if(name==='diagnostics-open'){window.nbOpenDiagnostics?.();return;}
   else if(name==='create-open')state.modal='create';
   else if(name==='confirm-open')state.modal='confirm';
   else if(name==='override-open')state.modal='override';

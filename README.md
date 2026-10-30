@@ -86,6 +86,12 @@ In the dispatcher view choose **Shadow-mode pilot**. The sample contains only an
 
 **Interpretation:** the result is a **current-roster eligibility snapshot**, not a staffing plan. It does not reserve capacity across the batch, model simultaneous jobs, send offers, measure travel time, or establish customer time savings. `P-001` through `P-005` are invented. Avoid entering real customer data or personal information; do not expose the demo application on a public host.
 
+## Integrity inspection and pilot stop signals
+
+In the dispatcher view choose **Integrity check**. The read-only inspector checks that each active assignment has a matching capacity reservation, that each reservation belongs to an active assignment, that job state and pending-offer state agree, and that crews do not exceed operational capacity. It also reports overdue offers, failed notifications and unresolved location reviews as warnings. It never modifies assignments or offer state.
+
+For a headless operator check run `npm run doctor`. It returns JSON and exits **0** for no critical findings (warnings still possible), **1** for a pilot stop-condition, and **2** for unavailable/broken storage. Use a recent verified backup and reconcile any critical issues with a human operator; the inspector does not auto-repair records. The report is a local diagnostic, not a production compliance certification or substitute for database integrity checks.
+
 ## Why this is deterministic
 
 - One pending offer per job and one current assignment per job are guarded by SQLite partial unique indexes.

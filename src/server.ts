@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.ts';
 import { Dispatch, DispatchError } from './domain.ts';
 import { PreviewAuth } from './auth.ts';
+import { inspectDispatch } from './diagnostics.ts';
 
 const PUBLIC = resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const PORT = Number(process.env.PORT || 4173);
@@ -55,6 +56,7 @@ const server = createServer(async(req,res) => {
         '/app.js':['app.js','text/javascript; charset=utf-8'],
         '/crew-admin.js':['crew-admin.js','text/javascript; charset=utf-8'],
         '/pilot.js':['pilot.js','text/javascript; charset=utf-8'],
+        '/diagnostics.js':['diagnostics.js','text/javascript; charset=utf-8'],
         '/styles.css':['styles.css','text/css; charset=utf-8'],
         '/favicon.svg':['favicon.svg','image/svg+xml']
       };
@@ -75,6 +77,7 @@ const server = createServer(async(req,res) => {
     dispatcher(req);
     if(path==='/api/dashboard'&&method==='GET') return end(res,app.dashboard());
     if(path==='/api/crews'&&method==='GET') return end(res,app.crews());
+    if(path==='/api/diagnostics'&&method==='GET') return end(res,inspectDispatch(db,app.now()));
     if(path==='/api/pilot/evaluate'&&method==='POST') return end(res,app.evaluatePilot(await body(req)));
     if(path==='/api/jobs'&&method==='POST') return end(res,app.createJob(await body(req)));
     if(path==='/api/demo/reset'&&method==='POST') return end(res,app.seed());

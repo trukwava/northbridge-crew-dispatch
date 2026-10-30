@@ -12,7 +12,8 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm test",
-    "backup": "node --experimental-strip-types src/backup.ts"
+    "backup": "node --experimental-strip-types src/backup.ts",
+    "doctor": "node --experimental-strip-types src/diagnostics.ts"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

@@ -16,3 +16,13 @@ dialog.pilot-lab textarea{font-family:ui-monospace,SFMono-Regular,Consolas,monos
 .pilot-summary .num{font-size:23px}
 .pilot-results{max-height:270px;overflow:auto}
 @media(max-width:720px){.pilot-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Read-only inspector, useful both in local demo and private preview. */
+dialog.diagnostics-dialog{margin:auto;max-width:min(660px,calc(100vw - 24px));width:100%}
+dialog.diagnostics-dialog::backdrop{background:rgba(11,40,42,.64)}
+.diagnostics-results{margin-top:14px}
+.diagnostics-verdict{font-weight:750;padding:12px;border-radius:7px;background:#edf7ed;color:#276448}
+.diagnostics-verdict[data-state=critical]{background:#fcebe8;color:#a63d35}
+.diagnostics-finding{padding:12px 0;border-top:1px solid var(--line);font-size:12px}
+.diagnostics-finding strong{font-size:12px;text-transform:capitalize}
+.diagnostics-finding p{font-size:11px;color:var(--muted);margin:5px 0}

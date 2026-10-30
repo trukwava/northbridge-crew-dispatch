@@ -13,4 +13,4 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test
       - run: npm run typecheck
-      - run: node --check public/app.js && node --check public/crew-admin.js && node --check public/pilot.js
+      - run: node --check public/app.js && node --check public/crew-admin.js && node --check public/pilot.js && node --check public/diagnostics.js
