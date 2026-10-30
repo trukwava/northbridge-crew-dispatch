@@ -14,8 +14,10 @@ const db = openDb(DB_PATH);
 const app = new Dispatch(db);
 const auth = new PreviewAuth();
 if (!db.prepare("SELECT key FROM settings WHERE key='demo_now'").get()) app.seed();
-const initialPoll = app.tick();
-console.log(`Northbridge synthetic demo: database ${DB_PATH}; ${initialPoll.expired} overdue offers recovered`);
+// A corrupt persisted assignment must never trigger writes during startup recovery.
+const startupStop = inspectDispatch(db,app.now()).stopPilot;
+const initialPoll = startupStop ? {expired:0} : app.tick();
+console.log(`Northbridge synthetic demo: database ${DB_PATH}; ${initialPoll.expired} overdue offers recovered${startupStop ? '; critical integrity finding, recovery worker paused' : ''}`);
 
 function send(res: ServerResponse, status: number, value: unknown, contentType='application/json; charset=utf-8') {
   const content = contentType.startsWith('application/json') ? JSON.stringify(value) : String(value);
@@ -130,7 +132,13 @@ const server = createServer(async(req,res) => {
     send(res,err?.status??500,{error:err?.message??'Unexpected server failure'});
   }
 });
-const worker=setInterval(()=> {try {app.tick();} catch(e){console.error('Scheduler error',e);}},1000);
+// Recheck before every scheduled write. API write guards alone do not protect a worker.
+const worker=setInterval(()=> {
+  try {
+    if(inspectDispatch(db,app.now()).stopPilot) return;
+    app.tick();
+  } catch(e){console.error('Scheduler error',e);}
+},1000);
 worker.unref();
 server.listen(PORT,'127.0.0.1',()=>console.log(`Crew Dispatch demo listening at http://127.0.0.1:${PORT}`));
 for(const signal of ['SIGTERM','SIGINT'] as const) process.on(signal,()=>{
