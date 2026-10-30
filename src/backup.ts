@@ -1,7 +1,7 @@
 /** Safe online SQLite snapshot of the synthetic preview database. Never overwrites existing backups. */
 import { backup, DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, renameSync, rmSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, linkSync, rmSync, chmodSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 export async function createSnapshot(sourcePath:string, destinationPath:string) {
@@ -23,8 +23,9 @@ export async function createSnapshot(sourcePath:string, destinationPath:string) 
       if(snapshot.prepare('PRAGMA foreign_key_check').get()) throw Error('Backup foreign-key check failed');
     } finally { snapshot.close(); }
     chmodSync(partial,0o600);
-    if(existsSync(destination)) throw Error('Backup destination became occupied; refusing to overwrite');
-    renameSync(partial,destination);
+    // Atomic no-clobber link: unlike rename(), an existing backup cannot be overwritten
+    // even if another process creates the destination between the preflight and this step.
+    linkSync(partial,destination);
     return destination;
   } finally { db.close(); rmSync(partial,{force:true}); }
 }

@@ -7,7 +7,7 @@ export type Sqlite = DatabaseSync;
 export const SCHEMA_VERSION = 1;
 
 /** Guard against silent partial migration or opening a database created by newer code. */
-function validateSchema(db: Sqlite) {
+export function validateSchema(db: Sqlite) {
   const required: Record<string,string[]> = {
     settings:['key','value'], crews:['id','name','max_capacity','baseline_load','token_hash'],
     crew_availability:['crew_id','status'], jobs:['id','status','region','location_status'],

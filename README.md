@@ -86,6 +86,12 @@ In the dispatcher view choose **Shadow-mode pilot**. The sample contains only an
 
 **Interpretation:** the result is a **current-roster eligibility snapshot**, not a staffing plan. It does not reserve capacity across the batch, model simultaneous jobs, send offers, measure travel time, or establish customer time savings. `P-001` through `P-005` are invented. Avoid entering real customer data or personal information; do not expose the demo application on a public host.
 
+## Verified recovery into a fresh database
+
+Back up a running demo using `npm run backup -- backups/dispatch-archive.sqlite`. With the application stopped, restore the snapshot **only to a new database path** with `npm run restore -- backups/dispatch-archive.sqlite ./recovered/dispatch.sqlite`. The restore command validates SQLite integrity, foreign keys, expected indexes/triggers, and the schema version *before and after* copying. It uses atomic no-clobber publishing, refuses an existing target or WAL/SHM marker, and leaves the source snapshot untouched. Reopen with `DB_PATH=./recovered/dispatch.sqlite npm start` and run `DB_PATH=./recovered/dispatch.sqlite npm run doctor` to inspect invariants. **Never point restore at an in-use database.** Keep backup files outside web-served folders and control access to them.
+
+This is a synthetic-demo recovery route, not a tested multi-node disaster-recovery plan or a substitute for off-host encrypted backups and a rehearsed recovery-time objective.
+
 ## Integrity inspection and pilot stop signals
 
 In the dispatcher view choose **Integrity check**. The read-only inspector checks that each active assignment has a matching capacity reservation, that each reservation belongs to an active assignment, that job state and pending-offer state agree, and that crews do not exceed operational capacity. It also reports overdue offers, failed notifications and unresolved location reviews as warnings. It never modifies assignments or offer state.

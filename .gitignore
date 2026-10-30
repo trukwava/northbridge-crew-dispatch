@@ -6,3 +6,8 @@ node_modules/
 *.sqlite-wal
 backups/
 *.partial-*
+
+# Local preview credentials and sessions must never be committed.
+.env
+.env.*
+!.env.example

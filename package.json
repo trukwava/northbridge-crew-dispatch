@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "verify": "npm test",
     "backup": "node --experimental-strip-types src/backup.ts",
-    "doctor": "node --experimental-strip-types src/diagnostics.ts"
+    "doctor": "node --experimental-strip-types src/diagnostics.ts",
+    "restore": "node --experimental-strip-types src/restore.ts"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
