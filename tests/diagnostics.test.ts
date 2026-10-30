@@ -42,7 +42,13 @@ test('critical stored invariant blocks HTTP writes but allows read-only audit an
  const dir=mkdtempSync(join(tmpdir(),'nb-integrity-stop-')),path=join(dir,'dispatch.sqlite');
  let db=openDb(path),app=new Dispatch(db);app.seed();app.start('J001');
  const offer=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(offer);
- app.accept(offer.id,'A');db.prepare("UPDATE capacity_reservations SET active=0 WHERE job_id='J001'").run();db.close();
+ app.accept(offer.id,'A');
+ // Leave a separate offer overdue: even the autonomous worker must not mutate it
+ // while a critical assignment/reservation mismatch persists.
+ app.start('J011');
+ const pending=app.detail('J011').offers.find((o:any)=>o.status==='pending');assert(pending);
+ db.prepare("UPDATE settings SET value=? WHERE key='demo_now'").run(String(pending.expires_ms));
+ db.prepare("UPDATE capacity_reservations SET active=0 WHERE job_id='J001'").run();db.close();
  const port=await new Promise<number>((ok,fail)=>{const s=createServer();s.once('error',fail);s.listen(0,'127.0.0.1',()=>{const a=s.address();s.close(()=>ok(typeof a==='object'&&a?a.port:0));});});
  const child=spawn(process.execPath,['--experimental-strip-types','src/server.ts'],{
   cwd:resolve(import.meta.dirname,'..'),env:{...process.env,AUTH_MODE:'demo',PORT:String(port),DB_PATH:path},stdio:'ignore'
@@ -59,5 +65,12 @@ test('critical stored invariant blocks HTTP writes but allows read-only audit an
   const crew=await fetch(url+'/api/crew/offers/'+encodeURIComponent(offer.id)+'/decline',{method:'POST',headers:{'X-Demo-Crew-Token':'northbridge-demo-a'}});
   assert.equal(crew.status,503);
   const openAgain=await fetch(url+'/api/dashboard',{headers});assert.equal(openAgain.status,200);
+  // Startup recovery and at least one scheduler polling cycle must both stay inert.
+  await new Promise(ok=>setTimeout(ok,1350));
+  const still=await fetch(url+'/api/jobs/J011',{headers});assert.equal(still.status,200);
+  const state=await still.json();
+  assert(state.offers.some((row:any)=>row.id===pending.id&&row.status==='pending'),
+    'Overdue offer must remain pending while the integrity stop is active');
+  assert.equal(state.timeline.filter((row:any)=>row.kind==='offer.expired').length,0);
  }finally{child.kill('SIGTERM');if(child.exitCode===null)await new Promise<void>(ok=>child.once('exit',()=>ok()));rmSync(dir,{recursive:true,force:true});}
 });
