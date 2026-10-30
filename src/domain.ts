@@ -196,6 +196,9 @@ export class Dispatch {
       const offer = one(this.db,'SELECT * FROM offers WHERE id=?',offerId);
       assert(offer, 'Offer not found',404);
       assert(offer.crew_id===crewId, 'Offer belongs to another crew',403);
+      // A lost HTTP acknowledgment may cause a crew to repeat its decline.
+      // The original event already escalated, so return success without mutating state.
+      if(offer.status==='declined') return {success:true,replayed:true};
       assert(offer.status==='pending','Offer is no longer pending');
       assert(this.now()<offer.expires_ms,'Offer has expired');
       execute(this.db,"UPDATE offers SET status='declined', responded_ms=? WHERE id=?",this.now(),offerId);
@@ -210,6 +213,11 @@ export class Dispatch {
       const offer = one(this.db,'SELECT * FROM offers WHERE id=?',offerId);
       assert(offer,'Offer not found',404);
       assert(offer.crew_id===crewId,'Offer belongs to another crew',403);
+      if(offer.status==='accepted') {
+        const same=one(this.db,'SELECT id FROM assignments WHERE job_id=? AND crew_id=? AND current=1',offer.job_id,crewId);
+        assert(same,'Offer was already finalized; no current matching assignment remains');
+        return {success:true,jobId:offer.job_id,crewId,replayed:true};
+      }
       assert(offer.status==='pending','Offer is no longer pending');
       // Deadline is exclusive. At the exact millisecond of expiry, expiration wins.
       assert(this.now()<offer.expires_ms,'Offer has expired; acceptance rejected');

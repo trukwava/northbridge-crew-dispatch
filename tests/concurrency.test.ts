@@ -39,7 +39,8 @@ test('duplicate cross-process acceptance cannot create duplicate assignments',as
  try{
   let db=openDb(path),app=new Dispatch(db);app.seed();app.start('J001');const offer=pending(app,'J001');db.close();
   const results=await Promise.all([worker(path,'accept',offer.id,'A'),worker(path,'accept',offer.id,'A')]);
-  assert.equal(results.filter(x=>x.ok).length,1,JSON.stringify(results));
+  assert.equal(results.filter(x=>x.ok).length,2,JSON.stringify(results));
+  assert.equal(results.filter(x=>x.value?.replayed).length,1);
   db=openDb(path);app=new Dispatch(db);
   assert.equal(app.detail('J001').offers.filter((x:any)=>x.status==='accepted').length,1);
   assert.equal(app.db.prepare('SELECT COUNT(*) n FROM assignments WHERE job_id=? AND current=1').get('J001')?.n,1);

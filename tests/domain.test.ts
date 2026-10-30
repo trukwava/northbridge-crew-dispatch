@@ -70,11 +70,24 @@ test('two jobs compete for B final slot; at most one reserves',()=>{
  assert.equal(a.dashboard().metrics.conflicts,0);
 });
 
-test('repeated accepts/declines cannot duplicate assignments or events',()=>{
+test('crew can retry a successful accept without duplicating capacity or audit',()=>{
  const a=fixture();a.start('J001');const alpha=offer(a,'J001');a.accept(alpha.id,'A');
- reject(()=>a.accept(alpha.id,'A'),'no longer pending');
+ const before=a.exportAudit().length;
+ assert.deepEqual(a.accept(alpha.id,'A'),{success:true,jobId:'J001',crewId:'A',replayed:true});
+ assert.equal(a.exportAudit().length,before);
  reject(()=>a.decline(alpha.id,'A'),'no longer pending');
  assert.equal(a.detail('J001').offers.filter((x:any)=>x.status==='accepted').length,1);
+ assert.equal(a.getCrew('A').reserved,1);
+ a.cancel('J001');
+ reject(()=>a.accept(alpha.id,'A'),'no current matching assignment');
+});
+test('crew can retry a prior decline without escalating twice',()=>{
+ const a=fixture();a.start('J001');const alpha=offer(a,'J001');a.decline(alpha.id,'A');
+ const audits=a.exportAudit().length;
+ assert.deepEqual(a.decline(alpha.id,'A'),{success:true,replayed:true});
+ assert.equal(a.exportAudit().length,audits);
+ assert.equal(a.detail('J001').offers.length,2);
+ assert.equal(offer(a,'J001').crew_id,'B');
 });
 
 test('durable polling recovers expired offer after process/db restart exactly once',()=>{
@@ -165,10 +178,12 @@ test('failed simulated channel is a visible, retryable notification attempt',()=
  assert(a.detail('J009').notifications.every((x:any)=>x.status==='failed'));
 });
 
-test('crew configuration changes eligibility, restores the channel, and is audited',()=>{
- const a=fixture();assert.equal(a.getCrew('C').channel,'unavailable');
- const c=a.editCrew('C',{channel:'in_app',availability:'available',skills:['Water mitigation'],areas:['Queens'],max_capacity:2,baseline_load:0});
- assert.equal(c.channel,'in_app');
+
+test('crew configuration changes eligibility, can restore the failed channel, and is audited',()=>{
+ const a=fixture();const before=a.getCrew('C');
+ assert.equal(before.channel,'unavailable');
+ const after=a.editCrew('C',{channel:'in_app',availability:'available',skills:['Water mitigation'],areas:['Queens'],max_capacity:2,baseline_load:0});
+ assert.equal(after.channel,'in_app');
  assert(a.exportAudit().some((x:any)=>x.action==='crew.update'));
  a.retryNotification(offer(a,'J009').id);
  assert.equal(a.detail('J009').notifications[0].status,'simulated');
@@ -184,7 +199,7 @@ test('crew edits preserve active assignment skills and capacity',()=>{
  assert.equal(a.detail('J001').assignment?.crew_id,'A');
 });
 
-test('changing availability during a live offer prevents acceptance',()=>{
+test('changing availability during a live offer prevents an unauthorized acceptance',()=>{
  const a=fixture();a.start('J001');const pending=offer(a,'J001');
  a.editCrew('A',{availability:'unavailable'});
  reject(()=>a.accept(pending.id,'A'),'no longer eligible');

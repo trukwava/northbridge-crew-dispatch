@@ -114,6 +114,7 @@ For a headless operator check run `npm run doctor`. It returns JSON and exits **
 
 - One pending offer per job and one current assignment per job are guarded by SQLite partial unique indexes.
 - An acceptance verifies recipient, pending status, exclusive expiry deadline, job/sequence state, current eligibility and capacity before reserving and assigning in one transaction.
+- Repeating a crew's successful **accept** or **decline** returns an idempotent acknowledgment, without adding an event or reservation; a replayed acceptance only succeeds while that crew still has the current assignment. Late/expired/foreign offers remain rejected.
 - Expiration, cancellations and acceptance serialize through `BEGIN IMMEDIATE`. At the exact deadline, expiry wins. A double acceptance cannot create two assignments.
 - Capacity is checked both in domain logic and database triggers. A reservation is released on completion/cancellation.
 - A polling worker reads persisted deadlines on startup and each second; an operation key suppresses repeated logical expiry events.
