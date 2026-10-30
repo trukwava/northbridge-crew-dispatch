@@ -1,6 +1,6 @@
 const root=document.getElementById('root');
 const toast=document.getElementById('toast');
-const state={view:'dispatch',selected:'J001',filter:'all',crew:'A',dashboard:null,detail:null,inbox:null,modal:null,busy:false,session:null};
+const state={view:'dispatch',selected:'J001',filter:'all',crew:'A',dashboard:null,detail:null,inbox:null,modal:null,busy:false,session:null,refreshSeq:0,lastSyncAt:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const humanStatus=s=>String(s??'').replaceAll('_',' ');
 const status=s=>`<span class="status ${esc(s)}">${esc(humanStatus(s))}</span>`;
@@ -15,21 +15,40 @@ async function api(path,{method='GET',body=null,crew=false}={}){
  else headers['X-Demo-Role']='dispatcher';
  const r=await fetch(path,{method,headers,body:body==null?undefined:JSON.stringify(body)});
  const data=await r.json().catch(()=>({error:'Service returned a non-JSON response'}));
- if(!r.ok)throw Error(data.error||`Request failed (${r.status})`);
+ if(!r.ok){
+  if(r.status===401&&state.session?.mode==='preview'){
+    state.session={mode:'preview',authenticated:false};state.dashboard=null;state.inbox=null;
+    state.modal=null;render();
+  }
+  throw Error(data.error||`Request failed (${r.status})`);
+ }
  return data;
 }
-async function refresh(){
- if(state.session?.mode==='preview' && state.session.role==='crew'){
-   state.view='crew';state.crew=state.session.crewId;
-   state.inbox=await api('/api/crew/inbox',{crew:true});
-   state.dashboard=null;state.detail=null;
-   render();return;
- }
- state.dashboard=await api('/api/dashboard');
- if(!state.dashboard.jobs.some(x=>x.id===state.selected))state.selected=state.dashboard.jobs[0]?.id;
- if(state.selected)state.detail=await api(`/api/jobs/${encodeURIComponent(state.selected)}`);
- if(state.view==='crew')state.inbox=await api('/api/crew/inbox',{crew:true});
- render();
+function syncLabel(healthy){
+ const statusEl=document.getElementById('sync-status');if(!statusEl)return;
+ const timestamp=state.lastSyncAt?new Date(state.lastSyncAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'never';
+ statusEl.dataset.state=healthy?'ok':'stale';
+ statusEl.textContent=healthy?`Updated ${timestamp}`:`Disconnected · last update ${timestamp}`;
+}
+async function refresh({background=false}={}){
+ const seq=++state.refreshSeq;
+ try{
+  if(state.session?.mode==='preview' && state.session.role==='crew'){
+    const inbox=await api('/api/crew/inbox',{crew:true});
+    if(seq!==state.refreshSeq||(background&&(state.modal||document.querySelector('dialog[open]'))))return;
+    state.view='crew';state.crew=state.session.crewId;state.inbox=inbox;
+    state.dashboard=null;state.detail=null;
+  }else{
+    const dashboard=await api('/api/dashboard');
+    const selected=dashboard.jobs.some(x=>x.id===state.selected)?state.selected:dashboard.jobs[0]?.id;
+    const detail=selected?await api(`/api/jobs/${encodeURIComponent(selected)}`):null;
+    const inbox=state.view==='crew'?await api('/api/crew/inbox',{crew:true}):null;
+    if(seq!==state.refreshSeq||(background&&(state.modal||document.querySelector('dialog[open]'))))return;
+    state.dashboard=dashboard;state.selected=selected;state.detail=detail;
+    if(inbox)state.inbox=inbox;
+  }
+  state.lastSyncAt=Date.now();syncLabel(true);render();
+ }catch(error){if(seq===state.refreshSeq)syncLabel(false);throw error;}
 }
 function metric(label,value,hint){return `<div class="metric"><div class="eyebrow">${label}</div><div class="num">${esc(value)}</div><div class="hint">${hint}</div></div>`;}
 function render(){
@@ -201,3 +220,11 @@ document.addEventListener('submit',async e=>{
  if(state.session.mode==='preview'&&state.session.role==='crew'){state.view='crew';state.crew=state.session.crewId;}
  await refresh();
 })().catch(err=>{root.innerHTML=`<div class="layout"><div class="callout warning"><strong>Unable to load demo.</strong> ${esc(err.message)}<p>Start the local server and refresh. No connected service is assumed.</p></div></div>`;notice(err.message,true);});
+
+// Keep the crew offer inbox and dispatcher console current without interrupting edits.
+// The server remains authoritative for deadlines; this timer only refreshes presentation.
+setInterval(()=>{
+ if(document.hidden||state.busy||state.modal||document.querySelector('dialog[open]')||
+    (state.session?.mode==='preview'&&!state.session.authenticated))return;
+ refresh({background:true}).catch(()=>{}); // A visible sync indicator reports disconnection without toast spam.
+},15000);

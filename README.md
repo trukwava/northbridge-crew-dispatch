@@ -86,6 +86,10 @@ In the dispatcher view choose **Shadow-mode pilot**. The sample contains only an
 
 **Interpretation:** the result is a **current-roster eligibility snapshot**, not a staffing plan. It does not reserve capacity across the batch, model simultaneous jobs, send offers, measure travel time, or establish customer time savings. `P-001` through `P-005` are invented. Avoid entering real customer data or personal information; do not expose the demo application on a public host.
 
+## Freshness and disconnected-state behavior
+
+The dispatcher and crew screens refresh roughly every 15 seconds while visible, unless an action or dialog is open. A compact status label displays the last successful sync; failures mark the view as disconnected **without hiding potentially stale information**. Server-side expiry and capacity checks remain authoritative even if the browser display is out of date. Refresh manually after a disconnected state; preview sessions that expire require a new sign-in. This polling is not a real-time messaging subscription or proof a crew viewed a notification.
+
 ## Multi-process race tests
 
 `npm test` also launches independent Node processes against the **same SQLite WAL database**. These tests race two acceptances for one crew's last capacity slot, duplicate acceptance of one offer, and two expiry workers processing the same durable deadline. They assert at most one capacity reservation/assignment and one logical expiration, then inspect persisted invariants. This is meaningful concurrency evidence but **not** a distributed load test, fault-injection certification, or proof of safety under every production topology.
