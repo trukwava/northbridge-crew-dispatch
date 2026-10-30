@@ -28,7 +28,7 @@ npm start
 The server binds to `127.0.0.1` intentionally. On first run it seeds a fictional organization with **8 crews, 4 skills, 3 regions and 15 jobs**. Subsequent runs reuse `./data/crew-dispatch.sqlite`. Use **Reset synthetic data** in the interface to recreate the fixture. The reset erases the *demo database's* state; never point it at real data.
 
 ```sh
-npm test             # 16 domain/invariant tests
+npm test             # 20 domain/integration tests
 npm run typecheck    # TypeScript check
 ```
 
@@ -65,7 +65,7 @@ There are no paid integrations and no production credentials. No real notificati
 | Tests | `tests/domain.test.ts` — 16 invariant tests including restart, contention and expired offers |
 | Delivery | Local-only; no SMS/email, maps, tracking or external data |
 
-**Actual verification at the time of this publication:** 16/16 domain tests passed; `tsc --noEmit` passed; basic HTTP and bridged browser smoke tests were performed in the authoring environment. These are not production load, deployment, security or penetration tests.
+**Actual verification at the time of this publication:** 20/20 domain and HTTP tests passed locally; `tsc --noEmit` passed; basic HTTP and bridged browser smoke tests were performed in the authoring environment. These are not production load, deployment, security or penetration tests.
 
 **Still to do before any real pilot:** implement real authentication and organization-scoped authorization; migrations and data retention; proper secrets management; more extensive concurrent-process integration/load tests; visibility on pending notification acknowledgments; safe deployment; monitoring and backups. Do not expose this demo server to the Internet as-is.
 
