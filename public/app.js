@@ -1,6 +1,6 @@
 const root=document.getElementById('root');
 const toast=document.getElementById('toast');
-const state={view:'dispatch',selected:'J001',filter:'all',crew:'A',dashboard:null,detail:null,inbox:null,modal:null,busy:false};
+const state={view:'dispatch',selected:'J001',filter:'all',crew:'A',dashboard:null,detail:null,inbox:null,modal:null,busy:false,session:null};
 const esc=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const humanStatus=s=>String(s??'').replaceAll('_',' ');
 const status=s=>`<span class="status ${esc(s)}">${esc(humanStatus(s))}</span>`;
@@ -9,7 +9,9 @@ const button=(label,action,style='',more='')=>`<button class="button ${style}" t
 function notice(message,error=false){toast.textContent=message;toast.className='show'+(error?' error':'');clearTimeout(notice.timer);notice.timer=setTimeout(()=>toast.className='',4500);}
 async function api(path,{method='GET',body=null,crew=false}={}){
  const headers={'Content-Type':'application/json'};
- if(crew)headers['X-Demo-Crew-Token']=`northbridge-demo-${state.crew.toLowerCase()}`;
+ if(state.session?.mode==='preview'){
+  if(method!=='GET')headers['X-CSRF-Token']=state.session.csrfToken;
+ } else if(crew)headers['X-Demo-Crew-Token']=`northbridge-demo-${state.crew.toLowerCase()}`;
  else headers['X-Demo-Role']='dispatcher';
  const r=await fetch(path,{method,headers,body:body==null?undefined:JSON.stringify(body)});
  const data=await r.json().catch(()=>({error:'Service returned a non-JSON response'}));
@@ -17,6 +19,12 @@ async function api(path,{method='GET',body=null,crew=false}={}){
  return data;
 }
 async function refresh(){
+ if(state.session?.mode==='preview' && state.session.role==='crew'){
+   state.view='crew';state.crew=state.session.crewId;
+   state.inbox=await api('/api/crew/inbox',{crew:true});
+   state.dashboard=null;state.detail=null;
+   render();return;
+ }
  state.dashboard=await api('/api/dashboard');
  if(!state.dashboard.jobs.some(x=>x.id===state.selected))state.selected=state.dashboard.jobs[0]?.id;
  if(state.selected)state.detail=await api(`/api/jobs/${encodeURIComponent(state.selected)}`);
@@ -25,9 +33,24 @@ async function refresh(){
 }
 function metric(label,value,hint){return `<div class="metric"><div class="eyebrow">${label}</div><div class="num">${esc(value)}</div><div class="hint">${hint}</div></div>`;}
 function render(){
- document.querySelectorAll('.tab').forEach(b=>{b.classList.toggle('active',b.dataset.view===state.view);b.setAttribute('aria-current',String(b.dataset.view===state.view));});
- root.innerHTML=state.dashboard?(state.view==='dispatch'?renderDispatch():renderCrew()):'<div class="loading">Loading synthetic dispatch data…</div>';
+ document.querySelectorAll('.tab').forEach(b=>{
+  b.hidden=state.session?.mode==='preview' && state.session.authenticated && (b.dataset.view===(state.session.role==='crew'?'dispatch':'crew')); 
+  b.classList.toggle('active',b.dataset.view===state.view);b.setAttribute('aria-current',String(b.dataset.view===state.view));
+ });
+ const logout=document.getElementById('preview-logout');if(logout)logout.hidden=state.session?.mode!=='preview'||!state.session.authenticated;
+ root.innerHTML=state.session?.mode==='preview'&&!state.session.authenticated?renderLogin():
+  (state.dashboard||state.inbox)?(state.view==='dispatch'?renderDispatch():renderCrew()):'<div class="loading">Loading synthetic dispatch data…</div>';
  if(state.modal)root.insertAdjacentHTML('beforeend',renderModal());
+}
+function renderLogin(){
+ return `<div class="layout" style="max-width:620px;margin:45px auto"><section class="panel clock-card"><span class="eyebrow">NORTHBRIDGE / RESTRICTED PREVIEW</span><h1>Sign in to preview</h1><p class="lead">Synthetic demo only. Each preview session has an explicit dispatcher or crew role; no customer data or external messages are connected.</p>
+ <form id="login-form" class="form-grid">
+  <label class="full"><span class="field-label">Role</span><select name="role" id="login-role"><option value="dispatcher">Dispatcher</option><option value="crew">Crew</option></select></label>
+  <label class="full" id="login-crew-wrap" hidden><span class="field-label">Crew</span><select name="crewId">${'ABCDEFGH'.split('').map(id=>`<option>${id}</option>`).join('')}</select></label>
+  <label class="full"><span class="field-label">Access key</span><input type="password" name="key" required minlength="32" autocomplete="off" placeholder="Enter your private preview key"></label>
+  <div class="form-actions full"><button class="button primary" type="submit">Sign in</button></div>
+  <p class="note full">Keys are supplied separately by the preview operator, not included in GitHub. Sessions expire after eight hours or when the server restarts.</p>
+ </form></section></div>`;
 }
 function renderDispatch(){
  const d=state.dashboard;
@@ -72,9 +95,9 @@ function renderDetail(x){
 function renderCrew(){
  const inbox=state.inbox;
  return `<div class="layout crew-layout"><div class="heading"><div><span class="eyebrow">CREW RESPONSE / DEMONSTRATION</span><h1>Crew offer inbox</h1><p class="lead">A crew can view and respond only to offers addressed to its demo identity.</p></div>${button('↻ Refresh inbox','refresh')}</div>
-  <div class="panel crew-card"><div class="eyebrow">SELECT SYNTHETIC CREW</div><div class="crew-controls"><label><span class="field-label">Demo identity</span><select id="crew-select">${state.dashboard.crews.map(c=>`<option value="${esc(c.id)}" ${c.id===state.crew?'selected':''}>${esc(c.id)} · ${esc(c.name)}</option>`).join('')}</select></label></div>
-  <p class="note">This switcher is deliberate demo impersonation. The server still checks each synthetic credential against the recipient of every offer; it is not a production authentication system.</p><div class="section-rule"></div>
-  <h2>${inbox?esc(inbox.name):'Crew'} · incoming offers</h2><p class="lead">Server clock: ${fmt(state.dashboard.clock.nowMs)}. Acceptance is valid strictly before expiration; clicking after expiry will be rejected.</p>
+  <div class="panel crew-card"><div class="eyebrow">SELECT SYNTHETIC CREW</div><div class="crew-controls"><label><span class="field-label">${state.session?.mode==='preview'?'Authenticated crew':'Demo identity'}</span>${state.session?.mode==='preview'?`<strong>${esc(state.inbox?.crewId||state.crew)} · ${esc(state.inbox?.name||'Crew')}</strong>`:`<select id="crew-select">${state.dashboard.crews.map(c=>`<option value="${esc(c.id)}" ${c.id===state.crew?'selected':''}>${esc(c.id)} · ${esc(c.name)}</option>`).join('')}</select>`}</label></div>
+  <p class="note">${state.session?.mode==='preview'?'Crew role is enforced by a server-side session; switching identities is disabled.':'This switcher is deliberate demo impersonation. The server still checks each synthetic credential against the recipient of every offer; it is not a production authentication system.'}</p><div class="section-rule"></div>
+  <h2>${inbox?esc(inbox.name):'Crew'} · incoming offers</h2><p class="lead">Server clock: ${fmt((state.dashboard?.clock||state.inbox?.clock).nowMs)}. Acceptance is valid strictly before expiration; clicking after expiry will be rejected.</p>
   ${inbox?.offers.length?inbox.offers.map(o=>`<article class="offer-card"><div class="offer-header"><div><span class="eyebrow">${esc(o.job_id)} / ${esc(o.urgency)}</span><h3>${esc(o.title)}</h3></div>${status(o.status)}</div>
     <dl class="info-grid"><div><dt>Service area</dt><dd>${esc(o.region)}</dd></div><div><dt>Address</dt><dd>${esc(o.address)}</dd></div><div><dt>Offer expires</dt><dd class="expiry">${fmt(o.expires_ms)}</dd></div><div><dt>Category</dt><dd>${esc(o.job_type)}</dd></div></dl>
     <div class="inline-controls">${button('Accept assignment','accept','primary',`data-offer="${esc(o.id)}"`)}${button('Decline','decline','danger',`data-offer="${esc(o.id)}"`)}</div></article>`).join(''):'<div class="empty">No active offers for this crew. Select a different identity or start a dispatch sequence from the dispatcher view.</div>'}
@@ -103,6 +126,10 @@ async function act(name,el){
  try {
   const jid=state.selected;
   const post=(url,body={})=>api(url,{method:'POST',body});
+  if(name==='logout'){
+    await api('/api/session/logout',{method:'POST'});
+    state.session={mode:'preview',authenticated:false};window.nbCsrf=null;state.dashboard=null;state.inbox=null;state.modal=null;render();return;
+  }
   if(name==='refresh')await refresh();
   else if(name==='create-open')state.modal='create';
   else if(name==='confirm-open')state.modal='confirm';
@@ -137,10 +164,22 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-job]')){e.preventDefault();state.selected=e.target.dataset.job;refresh().catch(err=>notice(err.message,true));}if(e.key==='Escape'&&state.modal){state.modal=null;render();}});
 document.addEventListener('change',e=>{
+ if(e.target.id==='login-role'){const wrap=document.getElementById('login-crew-wrap');if(wrap)wrap.hidden=e.target.value!=='crew';}
  if(e.target.id==='filter'){state.filter=e.target.value;render();}
  if(e.target.id==='crew-select'){state.crew=e.target.value;refresh().catch(err=>notice(err.message,true));}
 });
 document.addEventListener('submit',async e=>{
+ if(e.target.id==='login-form'){
+   e.preventDefault();if(state.busy)return;state.busy=true;
+   try{
+     const data=new FormData(e.target);
+     const response=await fetch('/api/session/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:data.get('role'),crewId:data.get('crewId'),key:data.get('key')})});
+     const result=await response.json();if(!response.ok)throw Error(result.error||'Login failed');
+     state.session=result;state.view=result.role==='crew'?'crew':'dispatch';state.crew=result.crewId||'A';
+     window.nbCsrf=result.csrfToken;await refresh();notice('Preview session started');
+   }catch(error){notice(error.message||String(error),true);}finally{state.busy=false;}
+   return;
+ }
  if(e.target.id!=='modal-form')return;
  e.preventDefault();if(state.busy)return;state.busy=true;
  try{
@@ -153,4 +192,10 @@ document.addEventListener('submit',async e=>{
  state.modal=null;await refresh();notice('Request saved with a new audit event');
  }catch(err){notice(err.message||String(err),true);}finally{state.busy=false;}
 });
-refresh().catch(err=>{root.innerHTML=`<div class="layout"><div class="callout warning"><strong>Unable to load demo.</strong> ${esc(err.message)}<p>Start the local server and refresh. No connected service is assumed.</p></div></div>`;notice(err.message,true);});
+(async()=>{
+ state.session=await fetch('/api/session').then(r=>r.json());
+ window.nbCsrf=state.session.csrfToken;
+ if(state.session.mode==='preview'&&!state.session.authenticated){render();return;}
+ if(state.session.mode==='preview'&&state.session.role==='crew'){state.view='crew';state.crew=state.session.crewId;}
+ await refresh();
+})().catch(err=>{root.innerHTML=`<div class="layout"><div class="callout warning"><strong>Unable to load demo.</strong> ${esc(err.message)}<p>Start the local server and refresh. No connected service is assumed.</p></div></div>`;notice(err.message,true);});

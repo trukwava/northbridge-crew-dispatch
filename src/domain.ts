@@ -289,13 +289,16 @@ export class Dispatch {
     });
   }
   crewInbox(token: string) {
-    const crew=one(this.db,'SELECT id FROM crews WHERE token_hash=?',digest(token));
-    assert(crew,'Invalid crew demo token',403);
+    return this.crewInboxForCrew(this.authenticateCrew(token));
+  }
+  /** Crew identity is supplied by the server-side preview session, never a caller-provided ID. */
+  crewInboxForCrew(crewId:string) {
+    const crew=this.getCrew(crewId);
     const offers=many(this.db,`SELECT o.id,o.status,o.expires_ms,o.created_ms,o.job_id,
       j.title,j.job_type,j.urgency,j.address,j.region,j.status AS job_status
       FROM offers o JOIN jobs j ON j.id=o.job_id
       WHERE o.crew_id=? AND o.status='pending' ORDER BY o.expires_ms`,crew.id);
-    return {crewId:crew.id, name:this.getCrew(crew.id).name, offers, clock:this.clock()};
+    return {crewId:crew.id, name:crew.name, offers, clock:this.clock()};
   }
   authenticateCrew(token: string) {
     const crew=one(this.db,'SELECT id FROM crews WHERE token_hash=?',digest(token));

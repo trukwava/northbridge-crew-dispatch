@@ -10,9 +10,30 @@ The riskiest dependency is coordinating simultaneous acceptance, expiration and 
 
 ## Browser preview with private GitHub Codespaces
 
-Open this repository in **GitHub Codespaces → Create codespace on main**. The devcontainer installs Node, starts the synthetic demo, and forwards port 4173 **privately**. Open the forwarded port in the Codespaces Ports panel. This is a development preview, not a public deployment. Codespaces may have usage limits or charges; check your account before starting.
+Open this repository in **GitHub Codespaces → Create codespace on main**. The devcontainer installs the required Node version, starts the synthetic demo, and forwards port 4173 **privately**. Open the forwarded port in the Codespaces Ports panel. This is a browser-accessible development preview, not a public production deployment. GitHub Codespaces may have usage limits or charges; check your account before launching.
 
-The demo server intentionally binds to `127.0.0.1` and uses fake credentials. Never expose it publicly without real authentication. If the forwarded port is unavailable, run `npm start` in the Codespace terminal.
+The demo server binds to `127.0.0.1`; if port forwarding in your Codespace cannot connect to it, run `npm start` and use the local port link in the integrated terminal. Never change the server to bind `0.0.0.0` without implementing real authentication.
+
+## Optional role-restricted preview (synthetic data only)
+
+The default `AUTH_MODE=demo` intentionally permits identity switching and **must stay on localhost or a private Codespaces port**. To test role boundaries, run `AUTH_MODE=preview` with an operator-supplied dispatcher access key and a JSON map of separately generated crew keys. **Each key must be unique and at least 32 characters. Never commit keys or a populated `.env`.** Generate random keys with `openssl rand -hex 32` (once per identity).
+
+```sh
+# Example: supply secrets through your shell or an uncommitted .env file.
+export AUTH_MODE=preview
+export PREVIEW_DISPATCHER_KEY="$(openssl rand -hex 32)"
+export PREVIEW_CREW_KEYS_JSON="$(node -e 'console.log(JSON.stringify(Object.fromEntries([..."ABCDEFGH"].map(id=>[id,require("crypto").randomBytes(32).toString("hex")]))))')"
+npm start
+```
+
+**Retain the generated values securely before starting**; you need them to sign in. Alternatively supply individually generated keys through a secret manager. In the sign-in screen choose dispatcher or a specific crew. In preview mode:
+
+- The browser receives an HttpOnly, Secure, SameSite=Strict session cookie, expiring after eight hours. Sessions are kept in server memory and are lost on restart.
+- The server applies role checks to each API route and derives crew identity from the session rather than trusting a claimed crew ID or demo header. Browser actions carry an in-memory CSRF token. Login attempts are throttled.
+- Dispatchers can see the operations dashboard, while crews only see offers for their own identity. Sign out to switch roles.
+- Local HTTP browsers may not persist Secure cookies; use an HTTPS private Codespaces forwarded URL when exercising this mode.
+
+This is **not a production identity system, nor multi-tenant authorization**. The deployment boundary remains a private developer preview; do not enable a public Codespaces port or use real customer data. For production, integrate a reviewed identity provider, organization-scoped database rows/queries, durable session storage, tenant isolation tests, audit attribution, backups, and retention controls.
 
 ## Run locally
 
@@ -28,7 +49,7 @@ npm start
 The server binds to `127.0.0.1` intentionally. On first run it seeds a fictional organization with **8 crews, 4 skills, 3 regions and 15 jobs**. Subsequent runs reuse `./data/crew-dispatch.sqlite`. Use **Reset synthetic data** in the interface to recreate the fixture. The reset erases the *demo database's* state; never point it at real data.
 
 ```sh
-npm test             # 20 domain/integration tests
+npm test             # domain and HTTP authorization/invariant tests
 npm run typecheck    # TypeScript check
 ```
 
@@ -42,7 +63,7 @@ There are no paid integrations and no production credentials. No real notificati
 4. Switch to Crew B and accept before expiry. One capacity slot and one current assignment are created atomically.
 5. As dispatcher, advance the job from **assigned → en route → arrived → in progress → completed**, observing timeline and audit records. You can also **Advance clock** to trigger expirations or **Run worker** to exercise recovery.
 6. Select `J006` for missing-location review, `J007` for an outside-region request, `J009` for a simulated notification failure, or `J014` for an exhausted historical offer sequence. Try **Retry channel**, **Confirm location**, and a fresh offer sequence. Export the audit CSV at the bottom of the dispatch console.
-7. In **Crew capacity / status**, select **Edit** to change a crew's operational skills, authorized areas, availability, workload, capacity, base coordinates, or simulated channel. Invalid updates and removal of requirements for an active assignment are rejected atomically.
+7. In **Crew capacity / status**, select **Edit** to change a crew's operational skills, authorized areas, declared availability, current workload, capacity, base coordinates, or simulated channel. Invalid updates and removal of requirements for an active assignment are rejected atomically.
 
 ## Why this is deterministic
 
@@ -52,7 +73,7 @@ There are no paid integrations and no production credentials. No real notificati
 - Capacity is checked both in domain logic and database triggers. A reservation is released on completion/cancellation.
 - A polling worker reads persisted deadlines on startup and each second; an operation key suppresses repeated logical expiry events.
 - Notifications are only simulated. A queue write never asserts a human receipt. Failed channels remain visible and retryable while an offer is live.
-- Crew-specific endpoints authorize by a **fictional demo token** and expose only the recipient's offers; dispatcher endpoints require a **forgeable demo header**. **Neither mechanism is real authentication or safe for public hosting.**
+- In default demo mode, crew identities and dispatcher headers are deliberately forgeable and never suitable for public hosting. Optional preview mode adds server-side role sessions; it is still a single synthetic organization and not production-ready.
 
 ## Architecture and status
 
@@ -62,12 +83,12 @@ There are no paid integrations and no production credentials. No real notificati
 | HTTP | Node built-in `http` server; JSON actions and audit CSV |
 | Domain | `src/domain.ts` — ranked eligibility, transitions, offers, reservations, event/audit models |
 | Data | `src/db.ts` — SQLite schema, constraints, transactions and durable local file |
-| Tests | `tests/domain.test.ts` — 16 invariant tests including restart, contention and expired offers |
+| Tests | `tests/*.test.ts` — domain, HTTP integration and role/CSRF boundary tests |
 | Delivery | Local-only; no SMS/email, maps, tracking or external data |
 
-**Actual verification at the time of this publication:** 20/20 domain and HTTP tests passed locally; `tsc --noEmit` passed; basic HTTP and bridged browser smoke tests were performed in the authoring environment. These are not production load, deployment, security or penetration tests.
+**Verification:** run `npm test` and `npm run typecheck` for current results. The initial demo passed 16 domain tests and bridged browser smoke tests; subsequent tests include crew configuration, preview login and role/CSRF boundaries. These are not production load, deployment, security or penetration tests.
 
-**Still to do before any real pilot:** implement real authentication and organization-scoped authorization; migrations and data retention; proper secrets management; more extensive concurrent-process integration/load tests; visibility on pending notification acknowledgments; safe deployment; monitoring and backups. Do not expose this demo server to the Internet as-is.
+**Still to do before any real pilot:** production identity-provider integration and organization-scoped authorization; migrations and data retention; proper secrets management; more extensive concurrent-process integration/load tests; visibility on pending notification acknowledgments; safe deployment; monitoring and backups. Do not expose this demo server to the Internet as-is.
 
 ## Pilot proposal
 

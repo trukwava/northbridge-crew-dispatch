@@ -4,12 +4,14 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.ts';
 import { Dispatch, DispatchError } from './domain.ts';
+import { PreviewAuth } from './auth.ts';
 
 const PUBLIC = resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const PORT = Number(process.env.PORT || 4173);
 const DB_PATH = resolve(process.env.DB_PATH || './data/crew-dispatch.sqlite');
 const db = openDb(DB_PATH);
 const app = new Dispatch(db);
+const auth = new PreviewAuth();
 if (!db.prepare("SELECT key FROM settings WHERE key='demo_now'").get()) app.seed();
 const initialPoll = app.tick();
 console.log(`Northbridge synthetic demo: database ${DB_PATH}; ${initialPoll.expired} overdue offers recovered`);
@@ -32,9 +34,13 @@ async function body(req:IncomingMessage):Promise<any> {
 }
 const end = (res:ServerResponse, value:unknown) => send(res,200,value);
 const dispatcher = (req:IncomingMessage) => {
+  if(auth.enabled) {auth.require(req,'dispatcher');return;}
   if(req.headers['x-demo-role'] !== 'dispatcher') throw new DispatchError('Dispatcher demo header required',403);
 };
-const crewId = (req:IncomingMessage) => app.authenticateCrew(String(req.headers['x-demo-crew-token'] ?? ''));
+const crewId = (req:IncomingMessage) => {
+  if(auth.enabled) return auth.require(req,'crew').crewId!;
+  return app.authenticateCrew(String(req.headers['x-demo-crew-token'] ?? ''));
+};
 
 const server = createServer(async(req,res) => {
   try {
@@ -55,7 +61,11 @@ const server = createServer(async(req,res) => {
       if(!asset) throw new DispatchError('Not found',404);
       return send(res,200,readFileSync(resolve(PUBLIC,asset[0]),'utf8'),asset[1]);
     }
-    if(path==='/api/crew/inbox' && method==='GET') return end(res,app.crewInbox(String(req.headers['x-demo-crew-token']??'')));
+    if(path==='/api/session' && method==='GET') return end(res,auth.publicState(req));
+    if(path==='/api/session/login' && method==='POST') return end(res,auth.login(req,res,await body(req)));
+    if(path==='/api/session/logout' && method==='POST') return end(res,auth.logout(req,res));
+    if(path==='/api/crew/inbox' && method==='GET') return end(res,
+      auth.enabled?app.crewInboxForCrew(crewId(req)):app.crewInbox(String(req.headers['x-demo-crew-token']??'')));
     let match = /^\/api\/crew\/offers\/([^/]+)\/(accept|decline)$/.exec(path);
     if(match && method==='POST') {
       const actor=crewId(req), offerId=match[1];

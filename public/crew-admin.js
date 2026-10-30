@@ -8,7 +8,7 @@
   ).join('') + '</div>';
   const input = (name, label, value, constraints) => '<label><span class="field-label">' + label + '</span><input name="' + name + '" ' + constraints + ' value="' + escapeHtml(value ?? '') + '"></label>';
   async function openCrewEditor(id, trigger) {
-    const res = await fetch('/api/crews', { headers: {'X-Demo-Role':'dispatcher'} });
+    const res = await fetch('/api/crews', { headers: {'X-Demo-Role':'dispatcher',...(window.nbCsrf?{'X-CSRF-Token':window.nbCsrf}:{})} });
     if (!res.ok) throw Error('Could not load crew settings');
     const crews = await res.json();
     const c = crews.find(crew => crew.id === id);
@@ -55,7 +55,7 @@
       submit.disabled = true;
       try {
         const response = await fetch('/api/crews/' + encodeURIComponent(id), {
-          method:'POST',headers:{'Content-Type':'application/json','X-Demo-Role':'dispatcher'},body:JSON.stringify(body)
+          method:'POST',headers:{'Content-Type':'application/json','X-Demo-Role':'dispatcher',...(window.nbCsrf?{'X-CSRF-Token':window.nbCsrf}:{})},body:JSON.stringify(body)
         });
         const result = await response.json();
         if (!response.ok) throw Error(result.error || 'Crew update was rejected');
