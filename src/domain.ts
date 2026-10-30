@@ -60,7 +60,7 @@ export class Dispatch {
       assignment: one(this.db,'SELECT * FROM assignments WHERE job_id=? AND current=1',jobId) ?? null,
       timeline: many(this.db,'SELECT kind,detail,at_ms,crew_id FROM state_events WHERE job_id=? ORDER BY at_ms DESC,rowid DESC',jobId),
       notifications: many(this.db,`SELECT n.id,n.offer_id,n.status,n.channel,n.detail,n.created_ms
-        FROM notification_attempts n JOIN offers o ON o.id=n.offer_id WHERE o.job_id=? ORDER BY n.created_ms DESC`,jobId),
+        FROM notification_attempts n JOIN offers o ON o.id=n.offer_id WHERE o.job_id=? ORDER BY n.created_ms DESC,n.rowid DESC`,jobId),
       locationEvidence: many(this.db,'SELECT kind,detail,confirmed_by,created_ms FROM location_evidence WHERE job_id=?',jobId),
       audits: many(this.db,'SELECT actor,action,detail,at_ms FROM audit_events WHERE job_id=? ORDER BY at_ms DESC',jobId) };
   }
