@@ -43,6 +43,12 @@ const crewId = (req:IncomingMessage) => {
   return app.authenticateCrew(String(req.headers['x-demo-crew-token'] ?? ''));
 };
 
+/** Fail closed on persisted critical invariant violations. Recovery is offline and deliberate. */
+const requireIntegrity = () => {
+  if(inspectDispatch(db,app.now()).stopPilot)
+    throw new DispatchError('Dispatch paused: critical persisted invariant violation; inspect /api/diagnostics and restore a verified snapshot',503);
+};
+
 const server = createServer(async(req,res) => {
   try {
     const uri = new URL(req.url || '/', 'http://localhost');
@@ -72,9 +78,11 @@ const server = createServer(async(req,res) => {
     let match = /^\/api\/crew\/offers\/([^/]+)\/(accept|decline)$/.exec(path);
     if(match && method==='POST') {
       const actor=crewId(req), offerId=match[1];
+      requireIntegrity();
       return end(res,match[2]==='accept'?app.accept(offerId,actor):app.decline(offerId,actor));
     }
     dispatcher(req);
+    if(method==='POST') requireIntegrity();
     if(path==='/api/dashboard'&&method==='GET') return end(res,app.dashboard());
     if(path==='/api/crews'&&method==='GET') return end(res,app.crews());
     if(path==='/api/diagnostics'&&method==='GET') return end(res,inspectDispatch(db,app.now()));

@@ -34,3 +34,30 @@ test('inspector flags overdue pending offer without mutating it',()=>{
  const unchanged=app.detail('J001').offers.find((o:any)=>o.id===offer.id);assert(unchanged);assert.equal(unchanged.status,'pending');
  app.db.close();
 });
+
+test('critical stored invariant blocks HTTP writes but allows read-only audit and diagnosis',async()=>{
+ const {mkdtempSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');
+ const {join,resolve}=await import('node:path');const {spawn}=await import('node:child_process');
+ const {createServer}=await import('node:net');
+ const dir=mkdtempSync(join(tmpdir(),'nb-integrity-stop-')),path=join(dir,'dispatch.sqlite');
+ let db=openDb(path),app=new Dispatch(db);app.seed();app.start('J001');
+ const offer=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(offer);
+ app.accept(offer.id,'A');db.prepare("UPDATE capacity_reservations SET active=0 WHERE job_id='J001'").run();db.close();
+ const port=await new Promise<number>((ok,fail)=>{const s=createServer();s.once('error',fail);s.listen(0,'127.0.0.1',()=>{const a=s.address();s.close(()=>ok(typeof a==='object'&&a?a.port:0));});});
+ const child=spawn(process.execPath,['--experimental-strip-types','src/server.ts'],{
+  cwd:resolve(import.meta.dirname,'..'),env:{...process.env,AUTH_MODE:'demo',PORT:String(port),DB_PATH:path},stdio:'ignore'
+ });
+ const url=`http://127.0.0.1:${port}`,headers={'X-Demo-Role':'dispatcher'};
+ try{
+  let started=false;for(let i=0;i<100;i++){try{if((await fetch(url+'/api/session')).ok){started=true;break;}}catch{}await new Promise(ok=>setTimeout(ok,30));}
+  assert(started,'Server should start read-only access even with corrupted assignment state');
+  const diag=await fetch(url+'/api/diagnostics',{headers});assert.equal(diag.status,200);
+  assert.equal((await diag.json()).stopPilot,true);
+  assert.equal((await fetch(url+'/api/audit.csv',{headers})).status,200);
+  const blocked=await fetch(url+'/api/jobs/J001/step',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({status:'en_route'})});
+  assert.equal(blocked.status,503);assert.match((await blocked.json()).error,/Dispatch paused/);
+  const crew=await fetch(url+'/api/crew/offers/'+encodeURIComponent(offer.id)+'/decline',{method:'POST',headers:{'X-Demo-Crew-Token':'northbridge-demo-a'}});
+  assert.equal(crew.status,503);
+  const openAgain=await fetch(url+'/api/dashboard',{headers});assert.equal(openAgain.status,200);
+ }finally{child.kill('SIGTERM');if(child.exitCode===null)await new Promise<void>(ok=>child.once('exit',()=>ok()));rmSync(dir,{recursive:true,force:true});}
+});
