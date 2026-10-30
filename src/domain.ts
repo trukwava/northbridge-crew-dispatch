@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { digest, transaction, type Sqlite } from './db.ts';
+import { inspectDispatch } from './diagnostics.ts';
 
 export type RecordRow = Record<string, any>;
 export class DispatchError extends Error {
@@ -241,6 +242,10 @@ export class Dispatch {
     });
   }
   tick() {
+    // Guard here as well as at the HTTP boundary: direct/secondary workers
+    // must not perform autonomous writes while persisted invariants are broken.
+    if (inspectDispatch(this.db,this.now()).stopPilot)
+      throw new DispatchError('Dispatch paused: critical persisted invariant violation; expiry worker cannot proceed',503);
     return transaction(this.db, () => {
       const overdue = many(this.db,"SELECT * FROM offers WHERE status='pending' AND expires_ms<=? ORDER BY expires_ms,id",this.now());
       for (const offer of overdue) {
