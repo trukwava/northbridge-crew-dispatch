@@ -1,0 +1,15 @@
+{
+  "name": "northbridge-crew-dispatch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first synthetic demo of durable crew dispatch and timed offers",
+  "type": "module",
+  "engines": {"node": ">=22.16.0"},
+  "scripts": {
+    "start": "node --experimental-strip-types src/server.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm test"
+  },
+  "devDependencies": {"typescript": "^5.8.3", "@types/node": "^22.0.0"}
+}
