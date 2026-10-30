@@ -55,6 +55,21 @@ npm run typecheck    # TypeScript check
 
 There are no paid integrations and no production credentials. No real notifications are sent.
 
+## Verified SQLite snapshots and safe recovery
+
+Every database now carries an explicit SQLite `user_version=1`. On startup the application validates critical columns, indexes, triggers, `quick_check`, and foreign keys. Pre-versioned legacy demo databases are adopted as v1 only after validation; databases claiming a newer version are **rejected rather than silently downgraded**. This is a versioned baseline, not a general migration framework.
+
+While the demo runs, take an **online, internally consistent SQLite backup** (including WAL-committed changes) without shutting it down:
+
+```sh
+npm run backup -- backups/dispatch-before-test.sqlite
+# or omit the destination to create a timestamped backup under ./backups
+```
+
+The backup command refuses to overwrite files, verifies the resulting snapshot, writes it privately (`0600`), and cleans up incomplete snapshots. SQLite databases, backups and journal files are ignored by Git. Store snapshots outside the repository and apply separate retention/encryption policies before using non-demo data.
+
+**Manual demo recovery:** Stop the application first. Preserve the existing `data/crew-dispatch.sqlite` and any `-wal`/`-shm` files together in a separate recovery folder (do not discard an uncheckpointed WAL). Copy a verified `.sqlite` snapshot into the configured `DB_PATH` with restrictive permissions, and only then restart. The restored database should report its previous jobs, assignments and audit records. Do not restore over a running database. No automated destructive restore operation is exposed.
+
 ## Operator walkthrough
 
 1. In **Dispatch overview**, select job `J001` to see the rules-ranked, eligible crews (A then B); ineligible rows explain missing skills, region, availability or capacity. Straight-line proximity is a tie-breaker **not a travel-time estimate**.

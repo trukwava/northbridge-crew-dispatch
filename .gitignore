@@ -4,3 +4,5 @@ node_modules/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+backups/
+*.partial-*
