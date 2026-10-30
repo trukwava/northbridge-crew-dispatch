@@ -27,6 +27,19 @@ test('read-only integrity inspector identifies unpaired reservations and assignm
  assert.equal(app.exportAudit().length,before);
  app.db.close();
 });
+test('domain expiry worker refuses to mutate a critically inconsistent database',()=>{
+ const app=fixture();
+ app.start('J001');const accepted=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(accepted);
+ app.accept(accepted.id,'A');
+ app.start('J011');const overdue=app.detail('J011').offers.find((o:any)=>o.status==='pending');assert(overdue);
+ app.db.prepare("UPDATE settings SET value=? WHERE key='demo_now'").run(String(overdue.expires_ms));
+ app.db.prepare("UPDATE capacity_reservations SET active=0 WHERE job_id='J001'").run();
+ assert.equal(inspectDispatch(app.db,app.now()).stopPilot,true);
+ assert.throws(()=>app.tick(),/Dispatch paused/);
+ assert.equal(app.detail('J011').offers.find((o:any)=>o.id===overdue.id)?.status,'pending');
+ app.db.close();
+});
+
 test('inspector flags overdue pending offer without mutating it',()=>{
  const app=fixture();app.start('J001');const offer=app.detail('J001').offers.find((o:any)=>o.status==='pending');
  assert(offer);const report=inspectDispatch(app.db,offer.expires_ms);
