@@ -164,3 +164,31 @@ test('failed simulated channel is a visible, retryable notification attempt',()=
  assert.equal(a.detail('J009').notifications.length,2);
  assert(a.detail('J009').notifications.every((x:any)=>x.status==='failed'));
 });
+
+test('crew configuration changes eligibility, restores the channel, and is audited',()=>{
+ const a=fixture();assert.equal(a.getCrew('C').channel,'unavailable');
+ const c=a.editCrew('C',{channel:'in_app',availability:'available',skills:['Water mitigation'],areas:['Queens'],max_capacity:2,baseline_load:0});
+ assert.equal(c.channel,'in_app');
+ assert(a.exportAudit().some((x:any)=>x.action==='crew.update'));
+ a.retryNotification(offer(a,'J009').id);
+ assert.equal(a.detail('J009').notifications[0].status,'simulated');
+});
+
+test('crew edits preserve active assignment skills and capacity',()=>{
+ const a=fixture();a.start('J001');a.accept(offer(a,'J001').id,'A');
+ reject(()=>a.editCrew('A',{skills:['Commercial cleaning']}),'current assignment');
+ reject(()=>a.editCrew('A',{areas:['Brooklyn']}),'current assignment');
+ reject(()=>a.editCrew('A',{max_capacity:1,baseline_load:1}),'capacity cannot');
+ assert(a.getCrew('A').skills.includes('Water mitigation'));
+ assert.equal(a.getCrew('A').remaining,1);
+ assert.equal(a.detail('J001').assignment?.crew_id,'A');
+});
+
+test('changing availability during a live offer prevents acceptance',()=>{
+ const a=fixture();a.start('J001');const pending=offer(a,'J001');
+ a.editCrew('A',{availability:'unavailable'});
+ reject(()=>a.accept(pending.id,'A'),'no longer eligible');
+ assert.equal(a.detail('J001').assignment,null);
+ a.advanceMinutes(5);
+ assert.equal(offer(a,'J001').crew_id,'B');
+});
