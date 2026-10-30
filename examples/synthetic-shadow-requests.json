@@ -1,0 +1,10 @@
+{
+  "mode": "synthetic",
+  "requests": [
+    {"id":"P-001","region":"Manhattan","skills":["Water mitigation"],"confirmed":true,"address_present":true,"lat":40.75,"lon":-73.99},
+    {"id":"P-002","region":"Queens","skills":["Commercial cleaning"],"confirmed":true,"address_present":true},
+    {"id":"P-003","region":"Brooklyn","skills":["Mold remediation"],"confirmed":true,"address_present":true},
+    {"id":"P-004","region":"Newark","skills":["Water mitigation"],"confirmed":false,"address_present":true},
+    {"id":"P-005","region":"Manhattan","skills":["Fire restoration"],"confirmed":false,"address_present":false}
+  ]
+}

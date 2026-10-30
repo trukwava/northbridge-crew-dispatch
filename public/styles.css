@@ -6,3 +6,13 @@ dialog.crew-editor { margin:auto; max-width:min(620px,calc(100vw - 28px)); width
 dialog.crew-editor::backdrop { background:rgba(11,40,42,.58); }
 dialog.crew-editor .full > label { display:block; }
 dialog.crew-editor #crew-admin-error { color:#a63d35; background:#fff3ef; padding:10px; border-radius:6px; }
+
+/* Read-only pilot evaluator: native dialog keeps tab focus within the experiment. */
+dialog.pilot-lab{margin:auto;max-width:min(840px,calc(100vw - 24px));width:100%}
+dialog.pilot-lab::backdrop{background:rgba(11,40,42,.64)}
+dialog.pilot-lab textarea{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;min-height:200px}
+.pilot-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:20px}
+.pilot-summary .metric{padding:12px}
+.pilot-summary .num{font-size:23px}
+.pilot-results{max-height:270px;overflow:auto}
+@media(max-width:720px){.pilot-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}

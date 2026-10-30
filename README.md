@@ -80,6 +80,12 @@ The backup command refuses to overwrite files, verifies the resulting snapshot, 
 6. Select `J006` for missing-location review, `J007` for an outside-region request, `J009` for a simulated notification failure, or `J014` for an exhausted historical offer sequence. Try **Retry channel**, **Confirm location**, and a fresh offer sequence. Export the audit CSV at the bottom of the dispatch console.
 7. In **Crew capacity / status**, select **Edit** to change a crew's operational skills, authorized areas, declared availability, current workload, capacity, base coordinates, or simulated channel. Invalid updates and removal of requirements for an active assignment are rejected atomically.
 
+## Pilot shadow-mode evaluation (read-only)
+
+In the dispatcher view choose **Shadow-mode pilot**. The sample contains only anonymous descriptors: ID, region, operational skills, and Boolean location confirmation/address-present flags (optional coordinates are supplied as numbers). It neither uploads addresses nor stores the request data. Evaluate up to 50 synthetic or de-identified descriptors against **the same deterministic eligibility rules** used for live demo ranking. Download the JSON report to inspect per-crew exclusions and location-review gaps. The example input is in `examples/synthetic-shadow-requests.json`.
+
+**Interpretation:** the result is a **current-roster eligibility snapshot**, not a staffing plan. It does not reserve capacity across the batch, model simultaneous jobs, send offers, measure travel time, or establish customer time savings. `P-001` through `P-005` are invented. Avoid entering real customer data or personal information; do not expose the demo application on a public host.
+
 ## Why this is deterministic
 
 - One pending offer per job and one current assignment per job are guarded by SQLite partial unique indexes.

@@ -64,8 +64,9 @@ export class Dispatch {
       locationEvidence: many(this.db,'SELECT kind,detail,confirmed_by,created_ms FROM location_evidence WHERE job_id=?',jobId),
       audits: many(this.db,'SELECT actor,action,detail,at_ms FROM audit_events WHERE job_id=? ORDER BY at_ms DESC',jobId) };
   }
-  rank(jobId: string) {
-    const job = this.getJob(jobId);
+  rank(jobId: string) { return this.rankFor(this.getJob(jobId)); }
+  /** Shared eligibility rule set for live demo jobs and read-only shadow evaluation. */
+  private rankFor(job: RecordRow) {
     const areas = many(this.db,'SELECT name FROM service_areas').map(a=>a.name);
     const reviewReasons: string[] = [];
     if (!job.address?.trim()) reviewReasons.push('Missing address');
@@ -88,6 +89,55 @@ export class Dispatch {
     ranking.sort((a,b) => Number(b.eligible)-Number(a.eligible) ||
       (a.proximityKm ?? Infinity)-(b.proximityKm ?? Infinity) || a.crewId.localeCompare(b.crewId));
     return { reviewReasons, ranking, metric:'Straight-line proximity in km, not road travel time. Crew ID breaks ties.' };
+  }
+  /** Read-only snapshot evaluation. Does not reserve capacity or imply actual assignment. */
+  evaluatePilot(payload: unknown) {
+    const data = payload as RecordRow;
+    assert(data && typeof data==='object' && !Array.isArray(data) && data.mode==='synthetic',
+      'Shadow evaluation requires explicit mode: synthetic; do not submit personal or real customer data',400);
+    assert(Object.keys(data).every(k=>['mode','requests'].includes(k)),
+      'Only mode and anonymous request descriptors are permitted',400);
+    const items = data.requests;
+    assert(Array.isArray(items) && items.length>0 && items.length<=50,
+      'Supply 1 to 50 synthetic or de-identified requests',400);
+    const validSkills = many(this.db,'SELECT name FROM skills').map(r=>r.name);
+    const ids = new Set<string>();
+    const results = items.map((source:unknown,index:number)=>{
+      const row=source as RecordRow;
+      assert(row && typeof row==='object'&&!Array.isArray(row),`Request ${index+1} must be an object`,400);
+      assert(Object.keys(row).every(k=>['id','region','skills','confirmed','address_present','lat','lon'].includes(k)),
+        'Only anonymous request descriptors are permitted (no names or addresses)',400);
+      const id=row.id;
+      assert(typeof id==='string'&&/^[A-Za-z0-9_-]{1,32}$/.test(id),`Request ${index+1} needs a short anonymous ID`,400);
+      assert(!ids.has(id),`Duplicate request ID ${id}`,400);
+      ids.add(id);
+      assert(typeof row.region==='string' && row.region.length>0 && row.region.length<=60,'Invalid service region',400);
+      const skills=row.skills;
+      assert(Array.isArray(skills)&&skills.length>=1&&skills.length<=4 &&
+        skills.every((skill:unknown)=>typeof skill==='string'&&validSkills.includes(skill)),'Unknown or invalid required skills',400);
+      assert(typeof row.confirmed==='boolean','Location confirmation must be explicitly true or false',400);
+      assert(row.address_present===true||row.address_present===false,
+        'address_present must explicitly be true or false (do not upload real addresses)',400);
+      const lat=row.lat===undefined||row.lat===null?null:row.lat;
+      const lon=row.lon===undefined||row.lon===null?null:row.lon;
+      assert((lat===null&&lon===null)||(typeof lat==='number'&&typeof lon==='number'&&
+        Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180),
+        'Invalid optional coordinates',400);
+      const evaluated = this.rankFor({skills:[...new Set(skills)],region:row.region,
+        address:row.address_present?'confirmed (address withheld)':null,
+        location_status:row.confirmed?'confirmed':'needs_review',lat,lon});
+      const eligible=evaluated.ranking.filter(r=>r.eligible);
+      return {id,region:row.region,skills:[...new Set(skills)],
+        eligibleCrews:eligible.map(c=>c.crewId),firstCandidate:eligible[0]?.crewId??null,
+        eligibleCount:eligible.length,reviewReasons:evaluated.reviewReasons,
+        exclusions:evaluated.ranking.filter(c=>!c.eligible).map(c=>({crewId:c.crewId,reasons:c.reasons}))};
+    });
+    const blocked=results.filter(r=>r.reviewReasons.length>0);
+    const noEligible=results.filter(r=>r.reviewReasons.length===0&&r.eligibleCount===0);
+    return {mode:'synthetic',evaluatedAt:this.clock().iso,
+      disclaimer:'Read-only current-roster snapshot. No offers, reservations, notifications, or assignments were made. Repeated selections do not model shared crew capacity, travel time, or time saved.',
+      summary:{total:results.length,withEligibleCrew:results.length-blocked.length-noEligible.length,
+        needsLocationReview:blocked.length,noEligibleCrew:noEligible.length},results};
   }
   start(jobId: string, actor='dispatcher') {
     return transaction(this.db, () => {

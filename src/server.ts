@@ -54,6 +54,7 @@ const server = createServer(async(req,res) => {
         '/index.html':['index.html','text/html; charset=utf-8'],
         '/app.js':['app.js','text/javascript; charset=utf-8'],
         '/crew-admin.js':['crew-admin.js','text/javascript; charset=utf-8'],
+        '/pilot.js':['pilot.js','text/javascript; charset=utf-8'],
         '/styles.css':['styles.css','text/css; charset=utf-8'],
         '/favicon.svg':['favicon.svg','image/svg+xml']
       };
@@ -74,6 +75,7 @@ const server = createServer(async(req,res) => {
     dispatcher(req);
     if(path==='/api/dashboard'&&method==='GET') return end(res,app.dashboard());
     if(path==='/api/crews'&&method==='GET') return end(res,app.crews());
+    if(path==='/api/pilot/evaluate'&&method==='POST') return end(res,app.evaluatePilot(await body(req)));
     if(path==='/api/jobs'&&method==='POST') return end(res,app.createJob(await body(req)));
     if(path==='/api/demo/reset'&&method==='POST') return end(res,app.seed());
     if(path==='/api/demo/advance'&&method==='POST') return end(res,app.advanceMinutes(Number((await body(req)).minutes)));
