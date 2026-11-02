@@ -45,3 +45,16 @@ test('restore refuses a destination if orphan WAL marker exists',()=>{
   assert.throws(()=>restoreToNewDatabase(src,dest),/occupied/);assert.equal(existsSync(dest),false);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('restore rejects a logically inconsistent snapshot without creating a target',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'nb-inconsistent-'));
+ const source=join(dir,'snapshot.sqlite'),dest=join(dir,'restored','new.sqlite');
+ try{
+  const db=openDb(source),app=new Dispatch(db);app.seed();app.start('J001');
+  const pending=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(pending);
+  app.accept(pending.id,'A');
+  db.prepare("UPDATE assignments SET current=0 WHERE job_id='J001'").run();db.close();
+  assert.throws(()=>restoreToNewDatabase(source,dest),/critical dispatch invariants/);
+  assert.equal(existsSync(dest),false);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

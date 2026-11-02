@@ -40,6 +40,16 @@ export function inspectDispatch(db:Sqlite,nowMs:number) {
     guidance:critical?'Pilot stop: resolve critical invariants before any operational decisions.':'No critical invariant breaches detected. Warnings still require human review.'};
 }
 
+/** Require a usable dispatch state before treating a snapshot as a recovery point. */
+export function assertRecoverableDispatchState(db:Sqlite,label:string) {
+  const clock=db.prepare("SELECT value FROM settings WHERE key='demo_now'").get() as {value:string}|undefined;
+  const report=inspectDispatch(db,Number(clock?.value??Date.now()));
+  if(report.stopPilot) {
+    const codes=report.findings.filter(f=>f.severity==='critical').map(f=>f.code).join(', ');
+    throw Error(`${label} rejected: critical dispatch invariants (${codes})`);
+  }
+}
+
 /** Local health command. Never creates a new database just to inspect it. */
 if(process.argv[1] && /(?:^|\/)diagnostics\.(?:ts|js)$/.test(process.argv[1])) {
   const path=resolve(process.env.DB_PATH||'./data/crew-dispatch.sqlite');

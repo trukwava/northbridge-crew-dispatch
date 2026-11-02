@@ -104,6 +104,8 @@ Back up a running demo using `npm run backup -- backups/dispatch-archive.sqlite`
 
 This is a synthetic-demo recovery route, not a tested multi-node disaster-recovery plan or a substitute for off-host encrypted backups and a rehearsed recovery-time objective.
 
+Backups and restores also validate **logical dispatch integrity** before treating a database as a recoverable snapshot. A snapshot is rejected if a job lacks its current assignment, a reservation and assignment disagree, an active offer sequence is stranded, or another critical invariant fails. Noncritical warnings remain visible but do not prevent taking a snapshot. These checks do not replace offline recovery rehearsals or independently secured backups.
+
 ## Integrity inspection and pilot stop signals
 
 In the dispatcher view choose **Integrity check**. **If a critical finding exists, all dispatch and crew write operations return HTTP 503, and automatic offer-expiry processing is paused at startup and on each polling cycle until the database is repaired or restored offline.** Read-only dispatcher diagnostics, the dashboard and audit export remain accessible; login/logout are unaffected. The server does not silently self-heal or erase data.  The read-only inspector checks matching assignments and capacity reservations in both directions, detects jobs in an active work state with no current assignment, catches active offer sequences with no pending offer, verifies other job/offer state consistency, and detects crew capacity breaches. The expiry worker runs its integrity preflight under the same SQLite write lock as its updates. It also reports overdue offers, failed notifications and unresolved location reviews as warnings. It never modifies assignments or offer state.

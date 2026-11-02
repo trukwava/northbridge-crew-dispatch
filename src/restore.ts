@@ -4,6 +4,7 @@ import {copyFileSync,constants,existsSync,linkSync,unlinkSync,mkdirSync,chmodSyn
 import {dirname,resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {SCHEMA_VERSION,validateSchema} from './db.ts';
+import {assertRecoverableDispatchState} from './diagnostics.ts';
 
 function inspect(path:string) {
   const db=new DatabaseSync(path,{readOnly:true});
@@ -13,6 +14,7 @@ function inspect(path:string) {
     validateSchema(db);
     const integrity=db.prepare('PRAGMA integrity_check').get() as {integrity_check:string}|undefined;
     if(integrity?.integrity_check!=='ok')throw Error('Snapshot integrity check failed');
+    assertRecoverableDispatchState(db,'Restore snapshot');
     // A snapshot is useful only when it includes the expected fixture/data shape.
     const counts={jobs:Number((db.prepare('SELECT COUNT(*) n FROM jobs').get() as {n:number}).n),
       audits:Number((db.prepare('SELECT COUNT(*) n FROM audit_events').get() as {n:number}).n)};

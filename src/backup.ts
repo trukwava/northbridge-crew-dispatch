@@ -3,6 +3,7 @@ import { backup, DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, linkSync, rmSync, chmodSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { assertRecoverableDispatchState } from './diagnostics.ts';
 
 export async function createSnapshot(sourcePath:string, destinationPath:string) {
   const source=resolve(sourcePath), destination=resolve(destinationPath);
@@ -15,12 +16,14 @@ export async function createSnapshot(sourcePath:string, destinationPath:string) 
   try {
     const integrity=db.prepare('PRAGMA quick_check').get() as {quick_check:string}|undefined;
     if(integrity?.quick_check!=='ok') throw Error('Source database integrity check failed');
+    assertRecoverableDispatchState(db,'Source database');
     await backup(db,partial);
     const snapshot=new DatabaseSync(partial,{readOnly:true});
     try {
       const check=snapshot.prepare('PRAGMA integrity_check').get() as {integrity_check:string}|undefined;
       if(check?.integrity_check!=='ok') throw Error('Backup integrity check failed');
       if(snapshot.prepare('PRAGMA foreign_key_check').get()) throw Error('Backup foreign-key check failed');
+      assertRecoverableDispatchState(snapshot,'Backup snapshot');
     } finally { snapshot.close(); }
     chmodSync(partial,0o600);
     // Atomic no-clobber link: unlike rename(), an existing backup cannot be overwritten

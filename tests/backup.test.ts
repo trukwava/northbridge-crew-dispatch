@@ -51,3 +51,17 @@ test('online backup captures committed offers and audit; refuses overwrite',asyn
    }finally{restored.close();}
  }finally{db?.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test('backup rejects a logically inconsistent but valid SQLite source',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'nb-bad-snapshot-'));
+ const file=join(dir,'live.sqlite'),dest=join(dir,'snapshot.sqlite');
+ try{
+  const db=openDb(file),app=new Dispatch(db);app.seed();app.start('J001');
+  const pending=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(pending);
+  app.accept(pending.id,'A');
+  db.prepare("UPDATE capacity_reservations SET active=0 WHERE job_id='J001'").run();
+  await assert.rejects(()=>createSnapshot(file,dest),/critical dispatch invariants.*assignment_without_reservation/);
+  assert.equal(existsSync(dest),false);
+  db.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
