@@ -40,6 +40,31 @@ test('domain expiry worker refuses to mutate a critically inconsistent database'
  app.db.close();
 });
 
+test('active-status job missing its crew assignment triggers an integrity stop',()=>{
+ const app=fixture();
+ app.start('J001');const pending=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(pending);
+ app.accept(pending.id,'A');
+ app.db.prepare("UPDATE assignments SET current=0 WHERE job_id='J001'").run();
+ const report=inspectDispatch(app.db,app.now());
+ assert.equal(report.stopPilot,true);
+ assert(report.findings.some(f=>f.code==='job_without_current_assignment'&&f.sampleIds.includes('J001')));
+ assert.throws(()=>app.tick(),/Dispatch paused/);
+ app.db.close();
+});
+
+test('orphaned active offer sequence without a pending offer blocks worker',()=>{
+ const app=fixture();
+ app.start('J001');const pending=app.detail('J001').offers.find((o:any)=>o.status==='pending');assert(pending);
+ // Simulate an out-of-band failure after an offer is withdrawn without advancing the sequence.
+ app.db.prepare("UPDATE offers SET status='cancelled' WHERE id=?").run(pending.id);
+ const report=inspectDispatch(app.db,app.now());
+ assert.equal(report.stopPilot,true);
+ assert(report.findings.some(f=>f.code==='active_sequence_without_pending_offer'&&f.sampleIds.includes('J001')));
+ assert.throws(()=>app.tick(),/Dispatch paused/);
+ assert.equal(app.detail('J001').sequence?.status,'active');
+ app.db.close();
+});
+
 test('inspector flags overdue pending offer without mutating it',()=>{
  const app=fixture();app.start('J001');const offer=app.detail('J001').offers.find((o:any)=>o.status==='pending');
  assert(offer);const report=inspectDispatch(app.db,offer.expires_ms);

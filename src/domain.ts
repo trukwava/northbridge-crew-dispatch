@@ -242,11 +242,11 @@ export class Dispatch {
     });
   }
   tick() {
-    // Guard here as well as at the HTTP boundary: direct/secondary workers
-    // must not perform autonomous writes while persisted invariants are broken.
-    if (inspectDispatch(this.db,this.now()).stopPilot)
-      throw new DispatchError('Dispatch paused: critical persisted invariant violation; expiry worker cannot proceed',503);
     return transaction(this.db, () => {
+      // Inspect after obtaining the write lock; a concurrent process cannot
+      // alter persisted invariants between the check and this worker's writes.
+      if (inspectDispatch(this.db,this.now()).stopPilot)
+        throw new DispatchError('Dispatch paused: critical persisted invariant violation; expiry worker cannot proceed',503);
       const overdue = many(this.db,"SELECT * FROM offers WHERE status='pending' AND expires_ms<=? ORDER BY expires_ms,id",this.now());
       for (const offer of overdue) {
         execute(this.db,"UPDATE offers SET status='expired',responded_ms=? WHERE id=? AND status='pending'",this.now(),offer.id);
