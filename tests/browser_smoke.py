@@ -33,7 +33,7 @@ with sync_playwright() as pw:
         page.evaluate("window.fetch=async function(url,opts={}) { const r=await window.backend(url,opts.method||'GET',opts.headers||{},opts.body||'');return new Response(r.body,{status:r.status,headers:{'Content-Type':r.contentType}});};")
     except Exception: pass  # The managed browser sometimes performs a blocked probe after registration.
     page.add_script_tag(content=(P/'app.js').read_text())
-    page.get_by_text('Dispatch overview').wait_for(timeout=5000)
+    page.get_by_text('Conflict-Safe Dispatch').wait_for(timeout=5000)
     assert page.locator('tr[data-job]').count()==15
     page.screenshot(path=str(HERE/'desktop-preview.png'),full_page=True)
     page.get_by_role('button',name='Crew portal').click()

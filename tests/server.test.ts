@@ -40,6 +40,10 @@ test('HTTP integration: guarded crew configuration and static preview assets',as
       assert.equal(response.status,200,'Asset '+asset+' should be served');
       assert.equal(response.headers.get('x-content-type-options'),'nosniff');
     }
+    const titlePage=await (await fetch(origin+'/')).text();
+    assert.match(titlePage,/<title>Northbridge · Conflict-Safe Dispatch<\/title>/);
+    const client=await (await fetch(origin+'/app.js')).text();
+    assert.match(client,/<h1>Conflict-Safe Dispatch<\/h1>/);
     const unauthorized=await fetch(origin+'/api/crews');
     assert.equal(unauthorized.status,403);
     const protectedHeaders={'X-Demo-Role':'dispatcher'};

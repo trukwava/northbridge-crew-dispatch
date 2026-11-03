@@ -49,7 +49,7 @@ with TemporaryDirectory() as temp:
       page.get_by_text('Sign in to preview').wait_for(timeout=5000)
       page.locator('input[name=key]').fill(env['PREVIEW_DISPATCHER_KEY'])
       page.locator('#login-form button[type=submit]').click()
-      page.get_by_text('Dispatch overview').wait_for(timeout=5000)
+      page.get_by_text('Conflict-Safe Dispatch').wait_for(timeout=5000)
       assert page.locator('.tab:not([hidden])').count()==1
       page.get_by_role('button',name='Start offer sequence').first.click()
       page.get_by_text('Pending offer to Crew A').wait_for(timeout=5000)

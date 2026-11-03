@@ -85,7 +85,7 @@ function renderDispatch(){
  const jobs=d.jobs.filter(j=>state.filter==='all'||j.status===state.filter);
  const s=state.detail;
  return `<div class="layout">
-  <div class="heading"><div><span class="eyebrow">SERVICE OPERATIONS / DISPATCH CONSOLE</span><h1>Dispatch overview</h1><p class="lead">Coordinate crew offers and exceptions with an auditable, deterministic workflow.</p></div>
+  <div class="heading"><div><span class="eyebrow">SERVICE OPERATIONS / DISPATCH CONSOLE</span><h1>Conflict-Safe Dispatch</h1><p class="lead">Coordinate crew offers and exceptions with an auditable, deterministic workflow.</p></div>
    <div class="actions">${button('↻ Refresh','refresh')}${button('Shadow-mode pilot','pilot-open')}${button('Integrity check','diagnostics-open')}${button('+ New service request','create-open','primary')}</div></div>
   <section class="metrics" aria-label="Operational counts">${metric('OPEN REQUESTS',d.metrics.open,'Not completed or cancelled')}${metric('ASSIGNED / COMPLETED',d.metrics.assigned,'Including work in progress')}${metric('PENDING OFFERS',d.metrics.pending,'Awaiting crew response')}${metric('ACTIVE CONFLICTS',d.metrics.conflicts,'Current duplicate assignments')}</section>
   <div class="workspace"><div>

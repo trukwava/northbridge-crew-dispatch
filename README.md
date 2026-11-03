@@ -72,7 +72,7 @@ The backup command refuses to overwrite files, verifies the resulting snapshot, 
 
 ## Operator walkthrough
 
-1. In **Dispatch overview**, select job `J001` to see the rules-ranked, eligible crews (A then B); ineligible rows explain missing skills, region, availability or capacity. Straight-line proximity is a tie-breaker **not a travel-time estimate**.
+1. In **Conflict-Safe Dispatch**, select job `J001` to see the rules-ranked, eligible crews (A then B); ineligible rows explain missing skills, region, availability or capacity. Straight-line proximity is a tie-breaker **not a travel-time estimate**.
 2. Choose **Start offer sequence**. Crew A receives an offer for five minutes in simulated time.
 3. Switch to **Crew offer inbox**, select Crew A and decline. Switch back: B receives the next offer. A's late attempt is rejected.
 4. Switch to Crew B and accept before expiry. One capacity slot and one current assignment are created atomically.
@@ -94,7 +94,7 @@ Request creation, location confirmation, assignment override and reset confirmat
 
 The dispatcher and crew screens refresh roughly every 15 seconds while visible, unless an action or dialog is open. A compact status label displays the last successful sync; failures mark the view as disconnected **without hiding potentially stale information**. Server-side expiry and capacity checks remain authoritative even if the browser display is out of date. Refresh manually after a disconnected state; preview sessions that expire require a new sign-in. This polling is not a real-time messaging subscription or proof a crew viewed a notification.
 
-## Multi-process race tests
+## Concurrency verification
 
 `npm test` also launches independent Node processes against the **same SQLite WAL database**. These tests race two acceptances for one crew's last capacity slot, duplicate acceptance of one offer, and two expiry workers processing the same durable deadline. They assert at most one capacity reservation/assignment and one logical expiration, then inspect persisted invariants. This is meaningful concurrency evidence but **not** a distributed load test, fault-injection certification, or proof of safety under every production topology.
 
@@ -112,7 +112,9 @@ In the dispatcher view choose **Integrity check**. **If a critical finding exist
 
 For a headless operator check run `npm run doctor`. It returns JSON and exits **0** for no critical findings (warnings still possible), **1** for a pilot stop-condition, and **2** for unavailable/broken storage. Use a recent verified backup and reconcile any critical issues with a human operator; the inspector does not auto-repair records. The report is a local diagnostic, not a production compliance certification or substitute for database integrity checks.
 
-## Why this is deterministic
+## Transactional Concurrency Control
+
+Offer acceptance and expiry processing use SQLite transactions, persistent uniqueness constraints, and capacity guards. The expiry worker performs its integrity preflight while holding the same `BEGIN IMMEDIATE` write transaction used for its updates, preventing another writer from changing the checked state before those updates. These safeguards are scoped to this SQLite-backed demo, not a general guarantee of distributed-system safety.
 
 - One pending offer per job and one current assignment per job are guarded by SQLite partial unique indexes.
 - An acceptance verifies recipient, pending status, exclusive expiry deadline, job/sequence state, current eligibility and capacity before reserving and assigning in one transaction.
